@@ -79,7 +79,6 @@ void SaveSelectScene::Draw()
 
 	const SaveManager& sm = SaveManager::GetInstance();
 	const int monsterNum = static_cast<int>(MonsterTable::All().size());
-	const int fontS = Font::Get(FontSize::Small);
 
 	for (int i = 0; i < SaveManager::kSlotNum; i++)
 	{
@@ -91,7 +90,7 @@ void SaveSelectScene::Draw()
 		if (isSel) DrawUtil::Cursor(180.0f, y + 75.0f, time_);
 
 		const std::wstring title = L"きろく " + std::to_wstring(i + 1);
-		DrawStringToHandle(250, static_cast<int>(y + 14.0f), title.c_str(), GetColor(255, 230, 140), Font::Get(FontSize::Medium), GetColor(20, 15, 30));
+		Font::DrawTop(250.0f, y + 14.0f, title.c_str(), GetColor(255, 230, 140), FontSize::Medium, GetColor(20, 15, 30));
 
 		if (!s.exists)
 		{
@@ -106,7 +105,7 @@ void SaveSelectScene::Draw()
 		if (s.isCleared)
 		{
 			DrawUtil::Star(560.0f, y + 34.0f, 16.0f, time_ * 0.5f, GetColor(255, 220, 60));
-			DrawStringToHandle(585, static_cast<int>(y + 20.0f), L"クリアずみ", GetColor(255, 220, 60), fontS, GetColor(20, 15, 30));
+			Font::DrawTop(585.0f, y + 20.0f, L"クリアずみ", GetColor(255, 220, 60), FontSize::Small, GetColor(20, 15, 30));
 		}
 
 		const std::wstring line1 = L"ゆうしゃ Lv" + std::to_wstring(s.run.isActive ? s.run.heroLevel : s.hero.level) + L"　とうたつ：B" + std::to_wstring(s.deepestNormal) + L"F" +

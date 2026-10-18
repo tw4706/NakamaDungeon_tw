@@ -114,7 +114,7 @@ void FishZukanScene::Draw()
 			continue;
 		}
 		FishDraw::Fish({ cx, y + 76.0f }, 84.0f, all[i], isCaught ? time_ + i : 0.0f, 1.0f, !isCaught);
-		if (isCaught) Font::DrawCenter(cx, y + 116.0f, Stars(all[i].rarity).c_str(), GetColor(255, 210, 80), FontSize::Small, edge);
+		if (isCaught) Font::DrawCenterFit(cx, y + 116.0f, Stars(all[i].rarity), GetColor(255, 210, 80), FontSize::Small, edge, kCellW - 30.0f);
 	}
 
 	//くわしい せつめい

@@ -99,7 +99,6 @@ void ZukanScene::Draw()
 	const SaveSlot& s = SaveManager::GetInstance().Current();
 	const auto& book = isShinyPage_ ? s.zukanShiny : s.zukan;
 	const auto& all = MonsterTable::All();
-	const int fontS = Font::Get(FontSize::Small);
 	const unsigned int edge = GetColor(20, 15, 30);
 
 	if (isShinyPage_) DrawUtil::Gradient(0, 0, Game::kScreenWidth, Game::kScreenHeight, { 70, 50, 90 }, { 25, 15, 40 });
@@ -154,7 +153,8 @@ void ZukanScene::Draw()
 
 		MonsterData m = isShinyPage_ ? MonsterTable::ShinyVariant(i) : all[i];
 		if (!z.isSeen) m.color = { 25, 22, 35 };
-		const float size = m.type == MonsterType::Boss ? 38.0f : 36.0f;
+		//No. の もじに かからない ように わくの 高さに おさめる
+		const float size = UnitDraw::FitMonsterSize(m.type == MonsterType::Boss ? 38.0f : 36.0f, m, 54.0f);
 		//まだ みていない ものは まっくろな かげに
 		if (!z.isSeen) SetDrawBright(40, 36, 55);
 		UnitDraw::Monster({ cx, y + 82.0f }, size, m, z.isSeen ? time_ : 0.0f, 1.0f, false);
@@ -234,7 +234,7 @@ void ZukanScene::Draw()
 	}
 	else
 	{
-		DrawStringToHandle(750, 400, L"まだ みつけて いない", GetColor(150, 140, 170), fontS, edge);
+		Font::DrawTop(750.0f, 400.0f, L"まだ みつけて いない", GetColor(150, 140, 170), FontSize::Small, edge);
 	}
 
 	const std::wstring flags = std::wstring(z.isSeen ? L"● みた　" : L"○ みた　") + (z.isDefeated ? L"● たおした　" : L"○ たおした　") + (z.isRecruited ? L"★ なかま" : L"☆ なかま");

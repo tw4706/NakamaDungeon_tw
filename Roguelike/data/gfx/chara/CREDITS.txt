@@ -1,0 +1,30 @@
+キャラクター画像のクレジット(すべて itch.io の無料アセット / CC0 1.0 Universal)
+http://creativecommons.org/publicdomain/zero/1.0/
+クレジット表記は必須ではありませんが、作者への感謝として記載しています。
+画像は 正面むきの フレームを 横に ならべる ように 切り出して います。
+
+------------------------------------------------------------
+Ninja Adventure - Asset Pack  by Pixel-Boy & AAA
+https://pixel-boy.itch.io/ninja-adventure-asset-pack
+License: CC0
+  hero, sword, slime_blue, slime_green, mole, drop, flame, ghost, orb,
+  dragon_green, dragon_boss(DragonBlue のパーツを合成), bird, spirit_ice, spirit_fire,
+  wolf, lion, boar, rat, king_slime, demon
+
+------------------------------------------------------------
+Extended Monster Pack  by SorceressGameLab
+https://sorceressgamelab.itch.io/extended-monster-pack
+License: CC0
+  bat, doll, rock, armor_dark, armor_holy, priest
+
+------------------------------------------------------------
+Puny Myth Creatures  by Shade (merchant-shade)
+https://merchant-shade.itch.io/ph-myth-creatures
+License: CC0
+  golem (Kolyog)
+
+------------------------------------------------------------
+Crab Enemy Pixel Art 16x16  by Camacebra Games
+https://camacebra.itch.io/crab-pixel-art
+License: CC0
+  crab

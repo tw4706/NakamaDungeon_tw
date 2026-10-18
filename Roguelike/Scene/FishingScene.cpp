@@ -556,10 +556,10 @@ void FishingScene::DrawHud()
 		total++;
 		if (i < s.fish.size() && s.fish[i].count > 0) kinds++;
 	}
-	DrawUtil::Panel(20.0f, 16.0f, 360.0f, 108.0f, { 30, 26, 46 }, 210, { 200, 180, 120 });
-	Font::DrawFit(36.0f, 24.0f, L"むらの いけ", GetColor(255, 230, 140), FontSize::Small, edge, 310.0f);
+	DrawUtil::Panel(20.0f, 16.0f, 440.0f, 108.0f, { 30, 26, 46 }, 210, { 200, 180, 120 });
+	Font::DrawFit(36.0f, 24.0f, L"むらの いけ", GetColor(255, 230, 140), FontSize::Small, edge, 390.0f);
 	Font::DrawFit(36.0f, 62.0f, L"つりずかん " + std::to_wstring(kinds) + L"/" + std::to_wstring(total) + L"　きょう " + std::to_wstring(todayCount_) + L"ひき",
-		GetColor(230, 225, 245), FontSize::Small, edge, 310.0f);
+		GetColor(230, 225, 245), FontSize::Small, edge, 390.0f);
 
 	//したの あんない
 	std::wstring guide;

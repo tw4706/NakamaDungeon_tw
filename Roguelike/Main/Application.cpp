@@ -11,6 +11,7 @@
 #include "Sound.h"
 #include "Font.h"
 #include "Sprite.h"
+#include "CharaSprite.h"
 #include "AuraRenderer.h"
 #include "PixelArt.h"
 #include "Effects.h"
@@ -75,7 +76,7 @@ bool Application::Init()
 	gameScreen_ = MakeScreen(Game::kScreenWidth, Game::kScreenHeight, FALSE);
 
 	Font::Init();
-	if (!Sprite::Init())
+	if (!Sprite::Init() || !CharaSprite::Init())
 	{
 		MessageBox(nullptr, L"data/gfx の ドット絵が よめません", L"エラー", MB_OK);
 		DxLib_End();
@@ -142,6 +143,7 @@ void Application::Terminate()
 	Sound::GetInstance().Terminate();
 	Font::Terminate();
 	Sprite::Terminate();
+	CharaSprite::Terminate();
 	AuraRenderer::Terminate();
 	PixelArt::Terminate();
 	DeleteGraph(gameScreen_);

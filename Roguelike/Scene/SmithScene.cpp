@@ -20,7 +20,7 @@
 namespace
 {
 	constexpr int kVisibleRows = 9;
-	constexpr int kEquipJump = 5;	//そうび一覧で ←→ の とぶ かず
+	constexpr int kEquipJump = 5;	//そうび・おまもりの 一覧で ←→ の とぶ かず
 	constexpr int kMaxCharm = 100;
 
 	//錬成に必要なかけら
@@ -53,6 +53,7 @@ namespace
 		kBulkStar2,
 		kBulkStar3,
 		kBulkStar4,
+		kBulkStar5Plain,	//★5の うち レアスキルが ない もの
 		kBulkClear,
 		kBulkBack,
 		kBulkNum,
@@ -360,10 +361,18 @@ void SmithScene::UpdateCharm()
 	const int num = kTopRows + static_cast<int>(s.charms.size());
 	if (input.IsAnyTriggered(Button::Up)) { charmCursor_ = (charmCursor_ + num - 1) % num; sound.PlaySE(SE::Cursor); }
 	if (input.IsAnyTriggered(Button::Down)) { charmCursor_ = (charmCursor_ + 1) % num; sound.PlaySE(SE::Cursor); }
+	//←→で 5こずつ とぶ(はしでは はんたいがわへ。そうびの いちらんと おなじ)
+	const int jump = (input.IsAnyTriggered(Button::Right) ? kEquipJump : 0) - (input.IsAnyTriggered(Button::Left) ? kEquipJump : 0);
+	if (jump != 0)
+	{
+		const int edgeRow = jump > 0 ? num - 1 : 0;
+		charmCursor_ = charmCursor_ == edgeRow ? (num - 1 - edgeRow) : std::clamp(charmCursor_ + jump, 0, num - 1);
+		sound.PlaySE(SE::Cursor);
+	}
 	if (input.IsAnyTriggered(Button::Cancel)) { mode_ = Mode::Top; sound.PlaySE(SE::Cancel); return; }
 
-	//←→で ならびかえ(えらんでいる お守りは そのまま)
-	const int sortDir = (input.IsAnyTriggered(Button::Right) ? 1 : 0) - (input.IsAnyTriggered(Button::Left) ? 1 : 0);
+	//LB・RB(Q・E)で ならびかえ(えらんでいる お守りは そのまま)
+	const int sortDir = (input.IsAnyTriggered(Button::PageR) ? 1 : 0) - (input.IsAnyTriggered(Button::PageL) ? 1 : 0);
 	if (sortDir != 0)
 	{
 		const int keep = CharmIndexAt(charmCursor_);
@@ -520,17 +529,20 @@ void SmithScene::UpdateBulkMenu()
 	}
 
 	//★○いかを まとめて えらぶ(ロック中・そうびちゅうは のぞく)
-	const int maxStar = bulkCursor_ - kBulkStar1 + 1;
+	//★5は レアスキルが ついていない ものだけ(レアつきは だいじに とっておける ように)
+	const bool isStar5Plain = bulkCursor_ == kBulkStar5Plain;
+	const int maxStar = isStar5Plain ? 5 : bulkCursor_ - kBulkStar1 + 1;
 	int added = 0;
 	for (int i = 0; i < static_cast<int>(s.charms.size()); i++)
 	{
 		const Charm& c = s.charms[i];
-		if (c.rarity > maxStar || c.isLocked || s.equippedCharm == i || selected_[i]) continue;
+		if (c.isLocked || s.equippedCharm == i || selected_[i]) continue;
+		if (isStar5Plain ? (c.rarity != 5 || c.rare.kind != SkillKind::None) : c.rarity > maxStar) continue;
 		selected_[i] = 1;
 		added++;
 	}
 	sound.PlaySE(added > 0 ? SE::Point : SE::Buzzer);
-	Notice(L"★" + std::to_wstring(maxStar) + L"いかを " + std::to_wstring(added) + L"こ えらんだ（ぜんぶで " + std::to_wstring(SelectedCount()) + L"こ）");
+	Notice((isStar5Plain ? std::wstring(L"★5（レアなし）を ") : L"★" + std::to_wstring(maxStar) + L"いかを ") + std::to_wstring(added) + L"こ えらんだ（ぜんぶで " + std::to_wstring(SelectedCount()) + L"こ）");
 }
 
 void SmithScene::UpdateBulkConfirm()
@@ -822,7 +834,7 @@ void SmithScene::DrawTop()
 
 	//今の装備
 	const HeroBonus b = s.GearBonus(nullptr);
-	DrawUtil::Window(240.0f, 488.0f, 1040.0f, 652.0f);
+	DrawUtil::Window(240.0f, 474.0f, 1040.0f, 690.0f);
 	auto partText = [&s](int id, int isShiny, EquipPart part) -> std::wstring
 	{
 		const EquipSeries* e = id >= 0 ? EquipTable::Find(id) : nullptr;
@@ -830,9 +842,9 @@ void SmithScene::DrawTop()
 	};
 	const std::wstring equip = L"うえ：" + partText(s.equipUpper, s.equipUpperVar, EquipPart::Upper) +
 		L"　した：" + partText(s.equipLower, s.equipLowerVar, EquipPart::Lower);
-	Font::DrawFit(270.0f, 508.0f, equip, GetColor(240, 235, 255), FontSize::Small, GetColor(20, 15, 30), 750.0f);
+	Font::DrawFit(270.0f, 488.0f, equip, GetColor(240, 235, 255), FontSize::Small, GetColor(20, 15, 30), 750.0f);
 	const bool hasCharm = s.equippedCharm >= 0 && s.equippedCharm < static_cast<int>(s.charms.size());
-	Font::DrawFit(270.0f, 544.0f, L"おまもり：" + (hasCharm ? s.charms[s.equippedCharm].Name() : std::wstring(L"なし")) + (KeyItem::OwnedCount(s) > 0 ? L"　／　だいじな もの " + std::to_wstring(KeyItem::OwnedCount(s)) + L"こ" : std::wstring()), GetColor(240, 235, 255), FontSize::Small, GetColor(20, 15, 30), 750.0f);
+	Font::DrawFit(270.0f, 520.0f, L"おまもり：" + (hasCharm ? s.charms[s.equippedCharm].Name() : std::wstring(L"なし")) + (KeyItem::OwnedCount(s) > 0 ? L"　／　だいじな もの " + std::to_wstring(KeyItem::OwnedCount(s)) + L"こ" : std::wstring()), GetColor(240, 235, 255), FontSize::Small, GetColor(20, 15, 30), 750.0f);
 
 	std::wstring skills;
 	for (int k = static_cast<int>(SkillKind::Atk); k < static_cast<int>(SkillKind::Num); k++)
@@ -842,25 +854,18 @@ void SmithScene::DrawTop()
 		if (!skills.empty()) skills += L"　";
 		skills += SkillInfo::Describe({ static_cast<SkillKind>(k), v });
 	}
-	//スキルは2行まで折り返す
-	const auto lines = Font::Wrap(L"スキル：" + (skills.empty() ? std::wstring(L"なし") : skills), FontSize::Small, 750.0f);
-	for (size_t i = 0; i < lines.size() && i < 2; i++)
-	{
-		std::wstring line = lines[i];
-		if (i == 1 && lines.size() > 2) line += lines[2];
-		Font::DrawFit(270.0f + (i > 0 ? 24.0f : 0.0f), 580.0f + i * 30.0f, line, GetColor(200, 230, 255), FontSize::Small, GetColor(20, 15, 30), i > 0 ? 726.0f : 750.0f);
-	}
+	//スキルは4行に おさめる(おおい ときは 字を すこし 小さく する)
+	Font::DrawWrapped(270.0f, 554.0f, L"スキル：" + (skills.empty() ? std::wstring(L"なし") : skills), GetColor(200, 230, 255), FontSize::Small, GetColor(20, 15, 30), 750.0f, 4, 30.0f);
 }
 
 void SmithScene::DrawEquip()
 {
 	const SaveSlot& s = SaveManager::GetInstance().Current();
-	const int fontS = Font::Get(FontSize::Small);
 	const unsigned int edge = GetColor(20, 15, 30);
 	Font::DrawCenter(350.0f, 36.0f, L"そうびを つくる・つける", GetColor(255, 220, 140), FontSize::Medium, edge);
 
 	DrawUtil::Window(30.0f, 70.0f, 680.0f, 600.0f);
-	DrawStringToHandle(96, 84, L"シリーズ", GetColor(200, 190, 220), fontS, edge);
+	Font::DrawTop(96.0f, 84.0f, L"シリーズ", GetColor(200, 190, 220), FontSize::Small, edge);
 	Font::DrawCenter(390.0f, 96.0f, L"うえ", GetColor(200, 190, 220), FontSize::Small, edge);
 	Font::DrawCenter(495.0f, 96.0f, L"した", GetColor(200, 190, 220), FontSize::Small, edge);
 	Font::DrawCenter(605.0f, 96.0f, L"そざい", GetColor(200, 190, 220), FontSize::Small, edge);
@@ -895,7 +900,7 @@ void SmithScene::DrawEquip()
 		const EquipSeries* e = EquipTable::Find(r.monsterId);
 		if (!r.isKnown || !e)
 		{
-			DrawStringToHandle(96, static_cast<int>(y - 13.0f), L"？？？", GetColor(120, 110, 140), fontS, edge);
+			Font::DrawTop(96.0f, y - 13.0f, L"？？？", GetColor(120, 110, 140), FontSize::Small, edge);
 			continue;
 		}
 
@@ -953,7 +958,7 @@ void SmithScene::DrawEquip()
 		float lx = 40.0f;
 		auto label = [&](const wchar_t* text)
 		{
-			DrawStringToHandle(static_cast<int>(lx), static_cast<int>(ly - 12.0f), text, legend, fontS, edge);
+			Font::DrawTop(lx, ly - 12.0f, text, legend, FontSize::Small, edge);
 			lx += Font::Width(text, FontSize::Small) + 30.0f;
 		};
 		DrawRoundRectAA(lx, ly - 11.0f, lx + 26.0f, ly + 11.0f, 6.0f, 6.0f, 8, GetColor(40, 95, 60), TRUE);
@@ -1021,7 +1026,7 @@ void SmithScene::DrawEquip()
 
 	const bool isSetActive = s.equipUpper == r.monsterId && s.equipLower == r.monsterId &&
 		s.equipUpperVar == r.var && s.equipLowerVar == r.var;
-	if (isSetActive) DrawStringToHandle(750, 512, L"★ はつどう ちゅう！", GetColor(255, 230, 80), fontS, edge);
+	if (isSetActive) Font::DrawTop(750.0f, 512.0f, L"★ はつどう ちゅう！", GetColor(255, 230, 80), FontSize::Small, edge);
 
 	//えらんでいる部位のスキルの効果
 	const std::wstring effect = L"こうか：" + SkillInfo::Explain(now);
@@ -1045,11 +1050,10 @@ void SmithScene::DrawEquip()
 void SmithScene::DrawCharm()
 {
 	const SaveSlot& s = SaveManager::GetInstance().Current();
-	const int fontS = Font::Get(FontSize::Small);
 	const unsigned int edge = GetColor(20, 15, 30);
 	Font::DrawCenter(350.0f, 36.0f, L"おまもり", GetColor(255, 220, 140), FontSize::Medium, edge);
 	const std::wstring shard = L"かけら：" + std::to_wstring(s.shards) + L"こ　おまもり " + std::to_wstring(s.charms.size()) + L"/" + std::to_wstring(kMaxCharm);
-	DrawStringToHandle(720, 24, shard.c_str(), GetColor(200, 230, 255), fontS, edge);
+	Font::DrawTop(720.0f, 24.0f, shard.c_str(), GetColor(200, 230, 255), FontSize::Small, edge);
 
 	DrawUtil::Window(30.0f, 70.0f, 680.0f, 600.0f);
 	const std::wstring crafts[kCraftRows] =
@@ -1101,7 +1105,7 @@ void SmithScene::DrawCharm()
 	}
 
 	//ならびかえ
-	ButtonGuide::Draw(40.0f, 698.0f, std::wstring(L"{LR}：ならび「") + kSortNames[sortMode_] + L"」　{Y}：チェック", GetColor(190, 180, 210), FontSize::Small, edge);
+	ButtonGuide::Draw(40.0f, 698.0f, std::wstring(L"{LR}：5こ　{L}{R}：ならび「") + kSortNames[sortMode_] + L"」　{Y}：チェック", GetColor(190, 180, 210), FontSize::Small, edge);
 
 	//詳しい中身
 	DrawUtil::Window(700.0f, 70.0f, 1250.0f, 600.0f);
@@ -1122,8 +1126,8 @@ void SmithScene::DrawCharm()
 			L"スキルだまで スキルを えらんで つくる",
 		};
 		Font::DrawFit(730.0f, 110.0f, desc[charmCursor_], GetColor(240, 235, 255), FontSize::Small, edge, 495.0f);
-		DrawStringToHandle(730, 152, L"おまもりを ぶんかいすると", GetColor(180, 170, 200), fontS, edge);
-		DrawStringToHandle(730, 182, L"かけら と スキルだま が てにはいる", GetColor(180, 170, 200), fontS, edge);
+		Font::DrawTop(730.0f, 152.0f, L"おまもりを ぶんかいすると", GetColor(180, 170, 200), FontSize::Small, edge);
+		Font::DrawTop(730.0f, 182.0f, L"かけら と スキルだま が てにはいる", GetColor(180, 170, 200), FontSize::Small, edge);
 		Font::DrawFit(730.0f, 212.0f, L"かけら ★1=1 ★2=2 ★3=4 ★4=8 ★5=16", GetColor(180, 170, 200), FontSize::Small, edge, 495.0f);
 		Font::DrawFit(730.0f, 240.0f, L"（レアつきは +10）", GetColor(180, 170, 200), FontSize::Small, edge, 495.0f);
 		Font::DrawFit(730.0f, 268.0f, L"スキルだま：メインは Lvの かず、サブ・レアは 1こ", GetColor(180, 170, 200), FontSize::Small, edge, 495.0f);
@@ -1197,6 +1201,7 @@ void SmithScene::DrawBulk()
 		L"★2いかを ぜんぶ えらぶ",
 		L"★3いかを ぜんぶ えらぶ",
 		L"★4いかを ぜんぶ えらぶ",
+		L"★5（レアなし）を ぜんぶ えらぶ",
 		L"えらぶのを ぜんぶ やめる",
 		L"やめる",
 	};

@@ -107,6 +107,7 @@
     <ClCompile Include="Scene\FishingScene.cpp" />
     <ClCompile Include="System\ButtonGuide.cpp" />
     <ClCompile Include="System\Sprite.cpp" />
+    <ClCompile Include="System\CharaSprite.cpp" />
     <ClCompile Include="System\AuraRenderer.cpp" />
     <ClCompile Include="System\PixelArt.cpp" />
     <ClCompile Include="System\ShaderUtil.cpp" />
@@ -148,6 +149,7 @@
     <ClInclude Include="Scene\FishingScene.h" />
     <ClInclude Include="System\ButtonGuide.h" />
     <ClInclude Include="System\Sprite.h" />
+    <ClInclude Include="System\CharaSprite.h" />
     <ClInclude Include="System\AuraRenderer.h" />
     <ClInclude Include="System\PixelArt.h" />
     <ClInclude Include="System\ShaderUtil.h" />

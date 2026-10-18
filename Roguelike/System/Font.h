@@ -24,6 +24,11 @@ namespace Font
 	int GetPixelSize(FontSize size);
 
 	/// <summary>
+	/// 左上を きじゅんに 描画(DrawStringToHandle の かわり。フォントの 上下の ずれを なおす)
+	/// </summary>
+	void DrawTop(float x, float y, const wchar_t* text, unsigned int color, FontSize size, unsigned int edgeColor = 0, float scale = 1.0f);
+
+	/// <summary>
 	/// 中央揃えで描画
 	/// </summary>
 	void DrawCenter(float x, float y, const wchar_t* text, unsigned int color, FontSize size, unsigned int edgeColor);
@@ -47,6 +52,11 @@ namespace Font
 	/// 幅に収まるように縮めて中央揃えで描画
 	/// </summary>
 	void DrawCenterFit(float x, float y, const std::wstring& text, unsigned int color, FontSize size, unsigned int edgeColor, float maxWidth);
+
+	/// <summary>
+	/// 折り返して描画(左上基準)。maxLines 行に おさまらない ときは 字を すこし 小さく して ぜんぶ いれる
+	/// </summary>
+	void DrawWrapped(float x, float y, const std::wstring& text, unsigned int color, FontSize size, unsigned int edgeColor, float maxWidth, int maxLines, float lineGap);
 
 	/// <summary>
 	/// 幅に収まるように折り返す(なるべく空白で切る)

@@ -38,6 +38,7 @@ enum class SE
 	Signal,
 	Shiny,		//きらきら(ワープなど)
 	ShinyJackpot,	//色違いの登場(パチンコの あたりの ような おと)
+	Critical,	//かいしんの いちげき(ズバッ＋キィン)
 	Num,
 };
 

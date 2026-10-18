@@ -545,7 +545,8 @@ void CampScene::UpdateWalk()
 	if (input.IsAnyTriggered(Button::Cancel) || input.IsAnyTriggered(Button::Menu))
 	{
 		mode_ = Mode::Pause;
-		cursor_ = 3;
+		//さいしょは「とじる」(クリア後は こうもくが ふえるので いちばん した に あわせる)
+		cursor_ = static_cast<int>(PauseItems().size()) - 1;
 		Sound::GetInstance().PlaySE(SE::Cursor);
 		return;
 	}
@@ -1163,6 +1164,7 @@ void CampScene::Draw()
 		}
 	}
 
+	DrawPlaceLabels();
 	Effects::GetInstance().Draw();
 	DrawNoticeBoard();
 	DrawNewMarks();
@@ -1187,7 +1189,10 @@ void CampScene::Draw()
 		if (spot != Spot::Notice) ButtonGuide::DrawCenter(heroPos_.x, heroPos_.y - 70.0f + bob, text, GetColor(255, 240, 160), FontSize::Small, GetColor(20, 15, 30));
 	}
 
-	DrawHud();
+	//がめん ぜんたいを おおう メニューの ときは、ボタンの あんないと かさならない ように したの じょうほうを けす
+	const bool isFullMenu = mode_ == Mode::KeyItems || mode_ == Mode::Cook || mode_ == Mode::PartySelect || mode_ == Mode::Notice || mode_ == Mode::Unlock || mode_ == Mode::Respec ||
+		mode_ == Mode::StageSelect || mode_ == Mode::Confirm || mode_ == Mode::FloorSelect || mode_ == Mode::RankSelect;
+	if (!isFullMenu) DrawHud();
 	if (mode_ == Mode::StageSelect || mode_ == Mode::Confirm) DrawStageSelect();
 	if (mode_ == Mode::FloorSelect) DrawFloorSelect();
 	if (mode_ == Mode::RankSelect) DrawRankSelect();
@@ -1196,7 +1201,7 @@ void CampScene::Draw()
 	{
 		const std::vector<PauseItem> items = PauseItems();
 		const float h = 60.0f + items.size() * 70.0f;
-		DrawUtil::Window(420.0f, 360.0f - h * 0.5f, 860.0f, 360.0f + h * 0.5f);
+		DrawUtil::Window(360.0f, 360.0f - h * 0.5f, 920.0f, 360.0f + h * 0.5f);
 		for (size_t i = 0; i < items.size(); i++)
 		{
 			const float y = 360.0f - h * 0.5f + 65.0f + i * 70.0f;
@@ -1276,7 +1281,7 @@ void CampScene::UpdateFireMenu()
 void CampScene::DrawFireMenu()
 {
 	const unsigned int edge = GetColor(20, 15, 30);
-	DrawUtil::Window(400.0f, 190.0f, 880.0f, 520.0f);
+	DrawUtil::Window(330.0f, 190.0f, 950.0f, 545.0f);
 	Font::DrawCenter(640.0f, 230.0f, L"たきび", GetColor(255, 230, 140), FontSize::Medium, edge);
 
 	const wchar_t* items[3] = { L"りょうりする", L"せってい", L"やめる" };
@@ -1288,9 +1293,9 @@ void CampScene::DrawFireMenu()
 	}
 
 	const std::wstring meal = PendingMealText();
-	Font::DrawCenterFit(640.0f, 450.0f, meal.empty() ? std::wstring(L"つった さかなを りょうりすると つぎの ぼうけんで たべられる") : L"つぎの ぼうけんで たべる：" + meal,
-		meal.empty() ? GetColor(170, 160, 190) : GetColor(255, 210, 150), FontSize::Small, edge, 450.0f);
-	ButtonGuide::DrawCenter(640.0f, 490.0f, L"{A}：けってい　{B}：もどる", GetColor(160, 150, 180), FontSize::Small, edge);
+	Font::DrawCenterFit(640.0f, 460.0f, meal.empty() ? std::wstring(L"つった さかなを りょうりすると つぎの ぼうけんで たべられる") : L"つぎの ぼうけんで たべる：" + meal,
+		meal.empty() ? GetColor(170, 160, 190) : GetColor(255, 210, 150), FontSize::Small, edge, 580.0f);
+	ButtonGuide::DrawCenter(640.0f, 510.0f, L"{A}：けってい　{B}：もどる", GetColor(160, 150, 180), FontSize::Small, edge);
 }
 
 void CampScene::OpenCook()
@@ -1365,8 +1370,8 @@ void CampScene::DrawCook()
 
 	DrawUtil::Window(250.0f, 70.0f, 1030.0f, 650.0f);
 	Font::DrawCenter(640.0f, 110.0f, L"なにを りょうりする？", GetColor(255, 230, 140), FontSize::Medium, edge);
-	Font::DrawCenterFit(640.0f, 152.0f, L"つぎの あたらしい ぼうけんの あいだ きく（1かいに 1しな・おおきい さかなほど すこし つよい）",
-		GetColor(190, 180, 210), FontSize::Small, edge, 740.0f);
+	Font::DrawCenterFit(640.0f, 146.0f, L"つぎの あたらしい ぼうけんの あいだ きく", GetColor(190, 180, 210), FontSize::Small, edge, 740.0f);
+	Font::DrawCenterFit(640.0f, 173.0f, L"（1かいに 1しな・おおきい さかなほど すこし つよい）", GetColor(190, 180, 210), FontSize::Small, edge, 740.0f);
 
 	const int num = static_cast<int>(cookList_.size());
 	const int end = std::min(num, cookTop_ + kCookRows);
@@ -1427,7 +1432,7 @@ void CampScene::DrawLibraryMenu()
 {
 	const unsigned int edge = GetColor(20, 15, 30);
 	const SaveSlot& s = SaveManager::GetInstance().Current();
-	DrawUtil::Window(440.0f, 210.0f, 840.0f, 500.0f);
+	DrawUtil::Window(440.0f, 210.0f, 840.0f, 525.0f);
 	Font::DrawCenter(640.0f, 250.0f, L"しょこ", GetColor(255, 230, 140), FontSize::Medium, edge);
 
 	const wchar_t* items[3] = { L"モンスターずかん", L"つりずかん", L"やめる" };
@@ -1439,7 +1444,7 @@ void CampScene::DrawLibraryMenu()
 	}
 	//まだ見ていない色違いのページ
 	if (s.IsNew(NewsBit::kShinyZukan)) DrawUtil::NewMark(640.0f + Font::Width(items[0], FontSize::Small) * 0.5f + 20.0f, 320.0f, time_, 13.0f);
-	ButtonGuide::DrawCenter(640.0f, 470.0f, L"{A}：けってい　{B}：もどる", GetColor(160, 150, 180), FontSize::Small, edge);
+	ButtonGuide::DrawCenter(640.0f, 490.0f, L"{A}：けってい　{B}：もどる", GetColor(160, 150, 180), FontSize::Small, edge);
 }
 
 void CampScene::DrawNoticeBoard()
@@ -1462,11 +1467,16 @@ void CampScene::DrawNoticeBoard()
 	const float bottom = 52.0f + bob;
 	const unsigned int fill = isUnread ? GetColor(255, 250, 225) : GetColor(235, 235, 240);
 	const unsigned int frame = isUnread ? GetColor(230, 90, 60) : GetColor(150, 150, 170);
+	//ゆうしゃが ふきだしの うしろに いる ときは すかして みえる ように する
+	const float heroTop = heroPos_.y + kTile * 0.42f - 56.0f;
+	const bool isBehind = heroPos_.x > right - w - 24.0f && heroPos_.x < right + 24.0f && heroTop < bottom;
+	if (isBehind) SetDrawBlendMode(DX_BLENDMODE_ALPHA, 90);
 	DrawTriangleAA(right - 4.0f, top + 14.0f, right - 4.0f, bottom - 8.0f, right + 14.0f, bottom + 2.0f, frame, TRUE);
 	DrawRoundRectAA(right - w, top, right, bottom, 14.0f, 14.0f, 8, fill, TRUE);
 	DrawRoundRectAA(right - w, top, right, bottom, 14.0f, 14.0f, 8, frame, FALSE, 3.0f);
 	DrawTriangleAA(right - 6.0f, top + 16.0f, right - 6.0f, bottom - 10.0f, right + 8.0f, bottom - 2.0f, fill, TRUE);
 	ButtonGuide::DrawCenter(right - w * 0.5f, (top + bottom) * 0.5f, text, isUnread ? GetColor(220, 60, 50) : GetColor(90, 90, 110), FontSize::Small, fill);
+	if (isBehind) SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 
 	//未読のきらめき
 	if (isUnread && static_cast<int>(time_ * 4.0f) % 3 == 0)
@@ -1554,18 +1564,18 @@ void CampScene::DrawNotice()
 	const bool isPatch = UpdateLog::IsPatch(e.version);
 	bubble(300.0f, 92.0f, 980.0f, 140.0f, isPatch, true);
 	Font::DrawCenter(640.0f, 116.0f, title(e).c_str(), isPatch ? GetColor(170, 215, 255) : GetColor(255, 220, 120), FontSize::Medium, edge);
-	Font::DrawCenter(1010.0f, 116.0f, (std::to_wstring(noticeDetail_ + 1) + L"/" + std::to_wstring(num)).c_str(), GetColor(170, 160, 190), FontSize::Small, edge);
+	//ページばんごうは やじるしと かさならない ように その した
+	Font::DrawCenter(1030.0f, 156.0f, (std::to_wstring(noticeDetail_ + 1) + L"/" + std::to_wstring(num)).c_str(), GetColor(170, 160, 190), FontSize::Small, edge);
 
 	//となりの バージョンへの やじるし(左が あたらしい)
 	if (noticeDetail_ > 0) DrawTriangleAA(250.0f + bob, 116.0f, 266.0f + bob, 104.0f, 266.0f + bob, 128.0f, GetColor(255, 230, 120), TRUE);
-	if (noticeDetail_ + 1 < num) DrawTriangleAA(1030.0f - bob, 116.0f, 1014.0f - bob, 104.0f, 1014.0f - bob, 128.0f, GetColor(255, 230, 120), TRUE);
+	if (noticeDetail_ + 1 < num) DrawTriangleAA(1044.0f - bob, 116.0f, 1028.0f - bob, 104.0f, 1028.0f - bob, 128.0f, GetColor(255, 230, 120), TRUE);
 
-	const int font = Font::Get(FontSize::Small);
 	const int end = std::min(static_cast<int>(noticeRows_.size()), noticeScroll_ + kNoticeLines);
 	for (int i = noticeScroll_; i < end; i++)
 	{
 		const float y = 170.0f + (i - noticeScroll_) * kNoticeLineH;
-		DrawStringToHandle(262, static_cast<int>(y + 2.0f), noticeRows_[i].text.c_str(), GetColor(235, 230, 250), font, edge);
+		Font::DrawTop(262.0f, y + 2.0f, noticeRows_[i].text.c_str(), GetColor(235, 230, 250), FontSize::Small, edge);
 	}
 	if (noticeScroll_ > 0) DrawTriangleAA(1050.0f, 170.0f + bob, 1040.0f, 186.0f + bob, 1060.0f, 186.0f + bob, GetColor(255, 230, 120), TRUE);
 	if (end < static_cast<int>(noticeRows_.size())) DrawTriangleAA(1040.0f, 560.0f - bob, 1060.0f, 560.0f - bob, 1050.0f, 576.0f - bob, GetColor(255, 230, 120), TRUE);
@@ -1703,7 +1713,6 @@ void CampScene::DrawBuildings()
 		SetDrawBlendMode(DX_BLENDMODE_ADD, static_cast<int>(40 + 40 * glow));
 		DrawOvalAA(cx, y2 - 30.0f, 40.0f, 50.0f, 24, GetColor(120, 80, 200), TRUE);
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		Font::DrawCenter(cx, y2 + 14.0f, L"ダンジョン", GetColor(255, 240, 200), FontSize::Small, GetColor(30, 20, 20));
 	}
 
 	DrawArchive();
@@ -1723,8 +1732,16 @@ void CampScene::DrawBuildings()
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 		DrawOvalAA(fp.x, fp.y - 4.0f, 12.0f, 20.0f + flick, 16, GetColor(255, 160, 50), TRUE);
 		DrawOvalAA(fp.x, fp.y, 7.0f, 12.0f, 12, GetColor(255, 230, 120), TRUE);
-		Font::DrawCenter(fp.x, fp.y - 46.0f, L"たきび", GetColor(255, 240, 200), FontSize::Small, GetColor(30, 20, 20));
 	}
+}
+
+void CampScene::DrawPlaceLabels()
+{
+	//みちの うえの なまえは あるいている まものに かくれない ように さいごに かく
+	const float caveX = kOriginX + (kCave.x + kCave.w * 0.5f) * kTile;
+	Font::DrawCenter(caveX, (kCave.y + kCave.h) * kTile + 14.0f, L"ダンジョン", GetColor(255, 240, 200), FontSize::Small, GetColor(30, 20, 20));
+	const Vec2 fp = CellToPos(kFire);
+	Font::DrawCenter(fp.x, fp.y - 46.0f, L"たきび", GetColor(255, 240, 200), FontSize::Small, GetColor(30, 20, 20));
 }
 
 void CampScene::DrawArchive()
@@ -1801,17 +1818,19 @@ void CampScene::DrawHud()
 	for (const auto& z : s.zukan) if (z.isSeen) seen++;
 
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 170);
-	DrawRoundRectAA(30.0f, 660.0f, 1250.0f, 708.0f, 12.0f, 12.0f, 8, GetColor(15, 12, 25), TRUE);
+	DrawRoundRectAA(30.0f, 644.0f, 1250.0f, 710.0f, 12.0f, 12.0f, 8, GetColor(15, 12, 25), TRUE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 
-	std::wstring info = L"きろく" + std::to_wstring(sm.CurrentIndex() + 1) + L"　ゆうしゃ Lv" + std::to_wstring(s.run.isActive ? s.run.heroLevel : s.hero.level) + L"　ずかん " + std::to_wstring(seen) + L"/" + std::to_wstring(s.zukan.size()) +
-		L"　とうたつ " + (s.deepestNormal > 0 ? L"B" + std::to_wstring(s.deepestNormal) + L"F" : std::wstring(L"ー"));
-	if (s.isCleared) info += L"　★クリア　むげん " + (s.deepestInfinite > 0 ? L"B" + std::to_wstring(s.deepestInfinite) + L"F" : std::wstring(L"ー"));
-	if (s.deepestAbyss > 0) info += L"　しんえん B" + std::to_wstring(s.deepestAbyss) + L"F";
+	//1ぎょう目: きろく と ゆうしゃ。2ぎょう目: とうたつ と しょうごう(ながく なるので 2ぎょうに わける)
+	const std::wstring info = L"きろく" + std::to_wstring(sm.CurrentIndex() + 1) + L"　ゆうしゃ Lv" + std::to_wstring(s.run.isActive ? s.run.heroLevel : s.hero.level) + L"　ずかん " + std::to_wstring(seen) + L"/" + std::to_wstring(s.zukan.size());
+	std::wstring reach = L"とうたつ " + (s.deepestNormal > 0 ? L"B" + std::to_wstring(s.deepestNormal) + L"F" : std::wstring(L"ー"));
+	if (s.isCleared) reach += L"　★クリア　むげん " + (s.deepestInfinite > 0 ? L"B" + std::to_wstring(s.deepestInfinite) + L"F" : std::wstring(L"ー"));
+	if (s.deepestAbyss > 0) reach += L"　しんえん B" + std::to_wstring(s.deepestAbyss) + L"F";
 	const int title = Title::Best(s);
-	if (title >= 0) info += std::wstring(L"　「") + Title::Name(title) + L"」";
-	Font::DrawFit(50.0f, 672.0f, info, GetColor(240, 235, 255), FontSize::Small, GetColor(10, 10, 20), 985.0f);
-	ButtonGuide::Draw(1236.0f - ButtonGuide::Width(L"{M}：メニュー", FontSize::Small), 684.0f, L"{M}：メニュー", GetColor(170, 160, 190), FontSize::Small, GetColor(10, 10, 20));
+	if (title >= 0) reach += std::wstring(L"　「") + Title::Name(title) + L"」";
+	Font::DrawFit(50.0f, 649.0f, info, GetColor(240, 235, 255), FontSize::Small, GetColor(10, 10, 20), 985.0f);
+	Font::DrawFit(50.0f, 678.0f, reach, GetColor(240, 235, 255), FontSize::Small, GetColor(10, 10, 20), 985.0f);
+	ButtonGuide::Draw(1236.0f - ButtonGuide::Width(L"{M}：メニュー", FontSize::Small), 677.0f, L"{M}：メニュー", GetColor(170, 160, 190), FontSize::Small, GetColor(10, 10, 20));
 }
 
 void CampScene::DrawStageSelect()
@@ -1838,7 +1857,21 @@ void CampScene::DrawStageSelect()
 		DrawBoxAA(54.0f, top + 8.0f, 62.0f, top + 48.0f, Game::ToColor(tint), TRUE);
 		if (isSel && mode_ == Mode::StageSelect) DrawUtil::Cursor(36.0f, top + 28.0f, time_);
 		const unsigned int col = c.isLocked ? GetColor(120, 110, 140) : (isSel ? GetColor(255, 240, 150) : GetColor(210, 200, 230));
-		Font::DrawFit(74.0f, top + 13.0f, c.text, col, FontSize::Small, edge, 318.0f);
+
+		//「なまえ（はんい）」は 2だんに わけて かく(1ぎょうだと きれて しまう)
+		const size_t paren = c.text.find(L'（');
+		if (paren == std::wstring::npos)
+		{
+			Font::DrawFit(74.0f, top + 13.0f, c.text, col, FontSize::Small, edge, 318.0f);
+			continue;
+		}
+		std::wstring sub = c.text.substr(paren + 1);
+		const size_t close = sub.find(L'）');
+		if (close != std::wstring::npos) sub.erase(close, 1);
+		Font::DrawFit(74.0f, top + 3.0f, c.text.substr(0, paren), col, FontSize::Small, edge, 318.0f);
+		const float subW = static_cast<float>(Font::Width(sub, FontSize::Small));
+		const float subScale = subW > 0.0f ? std::min(0.75f, 318.0f / subW) : 0.75f;
+		Font::DrawTop(78.0f, top + 31.0f, sub.c_str(), c.isLocked ? GetColor(110, 100, 130) : GetColor(175, 165, 200), FontSize::Small, edge, subScale);
 	}
 
 	//みぎ: くわしい じょうほう
@@ -1967,11 +2000,7 @@ void CampScene::DrawStageDetail(float left, float top, float right, float bottom
 	else sub = L"ぜん" + std::to_wstring(Stage::kTrainingLastFloor) + L"かい・きっぷで ちょうせん";
 	if (choice.stage == -1) sub = L"ぼうけんの つづき：B" + std::to_wstring(s.run.floor) + L"F から";
 	Font::DrawFit(right - 330.0f, top + 20.0f, sub, GetColor(255, 210, 130), FontSize::Small, edge, 310.0f);
-	const auto desc = Font::Wrap(StageDesc(stage), FontSize::Small, right - left - 48.0f);
-	for (size_t i = 0; i < desc.size() && i < 3; i++)
-	{
-		Font::DrawFit(left + 24.0f, top + 62.0f + i * 31.0f, desc[i], GetColor(225, 220, 240), FontSize::Small, edge, right - left - 48.0f);
-	}
+	Font::DrawWrapped(left + 24.0f, top + 62.0f, StageDesc(stage), GetColor(225, 220, 240), FontSize::Small, edge, right - left - 48.0f, 3, 31.0f);
 
 	//------------------------------//
 	// エリアの タブ
@@ -2011,7 +2040,9 @@ void CampScene::DrawStageDetail(float left, float top, float right, float bottom
 	DrawUtil::Panel(cardL, boxTop + 12.0f, cardR, boxBottom - 12.0f, { 46, 36, 62 }, 240, { 150, 120, 170 });
 	const float cardX = (cardL + cardR) * 0.5f;
 	const int starId = stage == Stage::kTraining ? Stage::kKiraPurun : area.bossId;
-	Font::DrawCenter(cardX, boxTop + 34.0f, stage == Stage::kTraining ? L"しゅやく" : L"エリアの ぬし", GetColor(255, 200, 140), FontSize::Small, edge);
+	//しんえんの ぬしは「くるった」を みだしに いれて、なまえが きれない ように する
+	const wchar_t* cardHead = stage == Stage::kTraining ? L"しゅやく" : (stage == Stage::kAbyss ? L"くるった ぬし" : L"エリアの ぬし");
+	Font::DrawCenter(cardX, boxTop + 34.0f, cardHead, GetColor(255, 200, 140), FontSize::Small, edge);
 	if (starId >= 0)
 	{
 		//あしもとの ひかり
@@ -2022,7 +2053,7 @@ void CampScene::DrawStageDetail(float left, float top, float right, float bottom
 
 		const MonsterData& m = MonsterTable::Get(starId);
 		const bool isAbyss = stage == Stage::kAbyss;
-		const std::wstring name = isSeen(starId) ? (isAbyss ? L"くるった " : L"") + m.name : L"？？？";
+		const std::wstring name = isSeen(starId) ? m.name : L"？？？";
 		Font::DrawCenterFit(cardX, boxTop + 178.0f, name, GetColor(255, 255, 255), FontSize::Small, edge, cardR - cardL - 16.0f);
 		std::wstring state;
 		unsigned int stateCol = GetColor(170, 160, 190);
@@ -2053,12 +2084,12 @@ void CampScene::DrawStageDetail(float left, float top, float right, float bottom
 	if (stage == Stage::kTraining)
 	{
 		const Stage::TrainingRank& rk = Stage::Rank(areaIdx);
-		areaSub = L"レベル" + std::to_wstring(rk.levelCap) + L"まで あがりやすい・まものは むげん B" + std::to_wstring(area.first) + L"〜" + std::to_wstring(area.last) + L"F なみ";
+		areaSub = L"レベル" + std::to_wstring(rk.levelCap) + L"まで あがりやすい・まもの B" + std::to_wstring(area.first) + L"〜" + std::to_wstring(area.last) + L"F なみ";
 	}
 	else
 	{
 		areaSub = L"B" + std::to_wstring(area.first) + L"〜B" + std::to_wstring(area.last) + L"F";
-		if (area.bossId >= 0) areaSub += L"・B" + std::to_wstring(area.last) + L"F で ぬしと たたかう";
+		if (area.bossId >= 0) areaSub += L"・ぬしは B" + std::to_wstring(area.last) + L"F";
 		if (stage == Stage::kInfinite) areaSub += L"・つよさ ×" + std::to_wstring(100 + area.last * 4 / 10).insert(1, L".");
 		if (stage == Stage::kAbyss)
 		{
@@ -2117,7 +2148,8 @@ void CampScene::DrawStageDetail(float left, float top, float right, float bottom
 		for (int t = 0; t < Title::Count(); t++) if (Title::IsOwned(s, t)) titleNum++;
 		notes.push_back(L"きろく：さいしん " + (s.deepestAbyss > 0 ? L"B" + std::to_wstring(s.deepestAbyss) + L"F" : std::wstring(L"ー")) + L"　しょうごう " + std::to_wstring(titleNum) + L" / " + std::to_wstring(Title::Count()) + (s.isAbyssCleared ? L"　★とうは" : L""));
 		notes.push_back(L"まものは みんな しんえん版。なかまに ならず、しんえんの そざいを おとす");
-		notes.push_back(L"オーラの いろ＝ついた とくぎ　あか:2かい こうげき　みどり:どく　きいろ:まひ　だいだい:もやす　むらさき:すいとる");
+		notes.push_back(L"オーラの いろ＝ついた とくぎ　あか:2かい こうげき　みどり:どく");
+		notes.push_back(L"きいろ:まひ　だいだい:もやす　むらさき:すいとる");
 	}
 	else
 	{
@@ -2268,10 +2300,10 @@ void CampScene::DrawRespec()
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 140);
 	DrawBox(0, 0, Game::kScreenWidth, Game::kScreenHeight, GetColor(0, 0, 0), TRUE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-	DrawUtil::Window(290.0f, 90.0f, 990.0f, 640.0f);
-	Font::DrawCenter(640.0f, 130.0f, L"せいちょうの ふりなおし", GetColor(255, 230, 140), FontSize::Medium, edge);
+	DrawUtil::Window(200.0f, 80.0f, 1080.0f, 680.0f);
+	Font::DrawCenter(640.0f, 122.0f, L"せいちょうの ふりなおし", GetColor(255, 230, 140), FontSize::Medium, edge);
 	const std::wstring head = L"レベル " + std::to_wstring(level) + L"　ふれる ポイント " + std::to_wstring(HeroGrowth::TotalPoints(level)) + L"　のこり " + std::to_wstring(RespecLeft());
-	Font::DrawCenterFit(640.0f, 175.0f, head, RespecLeft() > 0 ? GetColor(255, 200, 120) : GetColor(170, 230, 170), FontSize::Small, edge, 640.0f);
+	Font::DrawCenterFit(640.0f, 166.0f, head, RespecLeft() > 0 ? GetColor(255, 200, 120) : GetColor(170, 230, 170), FontSize::Small, edge, 640.0f);
 
 	//ふりなおした あとの のうりょく
 	HeroProgress preview = s.hero;
@@ -2282,28 +2314,28 @@ void CampScene::DrawRespec()
 	const wchar_t* units[HeroGrowth::kNum] = { L"", L"", L"", L"%" };
 	for (int i = 0; i < HeroGrowth::kNum; i++)
 	{
-		const float y = 225.0f + i * 58.0f;
+		const float y = 215.0f + i * 54.0f;
 		const bool isSel = respecCursor_ == i;
-		if (isSel) DrawUtil::Cursor(330.0f, y, time_);
+		if (isSel) DrawUtil::Cursor(235.0f, y, time_);
 		const unsigned int col = isSel ? GetColor(255, 240, 150) : GetColor(220, 210, 235);
-		Font::DrawFit(370.0f, y - 14.0f, labels[i], col, FontSize::Small, edge, 160.0f);
-		Font::DrawFit(540.0f, y - 14.0f, std::wstring(L"◀ ") + std::to_wstring(respecPts_[i]) + L" ▶", col, FontSize::Small, edge, 140.0f);
-		Font::DrawFit(690.0f, y - 14.0f, std::wstring(L"（1ポイントで ") + HeroGrowth::kChoices[i].name + L"）", GetColor(170, 160, 190), FontSize::Small, edge, 170.0f);
-		Font::DrawFit(870.0f, y - 14.0f, std::to_wstring(values[i]) + units[i], GetColor(255, 255, 255), FontSize::Small, edge, 100.0f);
+		Font::DrawFit(270.0f, y - 14.0f, labels[i], col, FontSize::Small, edge, 160.0f);
+		Font::DrawFit(440.0f, y - 14.0f, std::wstring(L"◀ ") + std::to_wstring(respecPts_[i]) + L" ▶", col, FontSize::Small, edge, 140.0f);
+		Font::DrawFit(590.0f, y - 14.0f, std::wstring(L"（1ポイントで ") + HeroGrowth::kChoices[i].name + L"）", GetColor(170, 160, 190), FontSize::Small, edge, 330.0f);
+		Font::DrawFit(940.0f, y - 14.0f, std::to_wstring(values[i]) + units[i], GetColor(255, 255, 255), FontSize::Small, edge, 100.0f);
 	}
 
 	const wchar_t* actions[3] = { L"ぜんぶ もどす", L"けってい", L"やめる" };
 	for (int i = 0; i < 3; i++)
 	{
-		const float y = 225.0f + (kRespecStatRows + i) * 58.0f + 10.0f;
+		const float y = 215.0f + (kRespecStatRows + i) * 54.0f + 6.0f;
 		const bool isSel = respecCursor_ == kRespecStatRows + i;
-		if (isSel) DrawUtil::Cursor(330.0f, y, time_);
-		Font::DrawFit(370.0f, y - 14.0f, actions[i], isSel ? GetColor(255, 240, 150) : GetColor(220, 210, 235), FontSize::Small, edge, 400.0f);
+		if (isSel) DrawUtil::Cursor(235.0f, y, time_);
+		Font::DrawFit(270.0f, y - 14.0f, actions[i], isSel ? GetColor(255, 240, 150) : GetColor(220, 210, 235), FontSize::Small, edge, 400.0f);
 	}
 
 	if (respecMsgTime_ > 0.0f && !respecMsg_.empty())
 	{
-		Font::DrawCenterFit(640.0f, 575.0f, respecMsg_, GetColor(255, 220, 160), FontSize::Small, edge, 640.0f);
+		Font::DrawCenterFit(640.0f, 598.0f, respecMsg_, GetColor(255, 220, 160), FontSize::Small, edge, 640.0f);
 	}
-	ButtonGuide::DrawCenter(640.0f, 612.0f, L"{UD}：えらぶ　{LR}：ふる（{L}{R}で 10）　{A}：けってい　{B}：もどる", GetColor(160, 150, 180), FontSize::Small, edge);
+	ButtonGuide::DrawCenter(640.0f, 642.0f, L"{UD}：えらぶ　{LR}：ふる（{L}{R}で 10）　{A}：けってい　{B}：もどる", GetColor(160, 150, 180), FontSize::Small, edge);
 }

@@ -794,6 +794,19 @@ namespace
 			s.Add({ 0.0f, 0.45f, 2637.0f, 2637.0f, Wave::Triangle, 0.2f, 0.5f, 0.001f, 6.0f });
 			return s.MakeHandle(1.0f, kSEBufferNum);
 		}
+		case SE::Critical:
+		{
+			//ズバッ(するどく きりさく)＋ ドン(おもい てごたえ)＋ キィン(きんぞくの ひびき)
+			Synth s(0.6f);
+			s.Add({ 0.0f, 0.06f, 1200.0f, 3400.0f, Wave::Square, 0.14f, 0.3f, 0.001f, 0.0f, 0.0f, 0.005f, 6000.0f });
+			s.Add({ 0.02f, 0.16f, 9000.0f, 1200.0f, Wave::Noise, 0.55f, 0.5f, 0.001f, 16.0f });
+			s.Add({ 0.04f, 0.22f, 240.0f, 55.0f, Wave::Sine, 0.6f, 0.5f, 0.001f, 12.0f });
+			s.Add({ 0.04f, 0.14f, 160.0f, 60.0f, Wave::Square, 0.22f, 0.5f, 0.001f, 16.0f });
+			s.Add({ 0.06f, 0.5f, 2637.0f, 2637.0f, Wave::Sine, 0.13f, 0.5f, 0.001f, 6.0f, 0.0f, 0.05f });
+			s.Add({ 0.06f, 0.4f, 3951.0f, 3951.0f, Wave::Sine, 0.08f, 0.5f, 0.001f, 8.0f, 0.0f, 0.05f });
+			s.Add({ 0.06f, 0.3f, 7902.0f, 7902.0f, Wave::Sine, 0.03f, 0.5f, 0.001f, 12.0f });
+			return s.MakeHandle(1.2f, kSEBufferNum);
+		}
 		case SE::Shiny:
 		{
 			//きらきらと下りる音のあとに、ゆれる和音

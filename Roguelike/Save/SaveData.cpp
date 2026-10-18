@@ -238,6 +238,11 @@ namespace
 			{ L"つりびとの ぼうし", L"いけの さかなを 5しゅるい つった あかし。けいけんが みに つきやすい。", -1, { { SkillKind::Exp, 5 } }, 0, 0, 5 },
 			{ L"うきの おまもり", L"いけの さかなを 10しゅるい つった あかし。なかまを やさしく まもる。", -1, {}, 5, 0, 10 },
 			{ L"ぬしの うろこ", L"つりずかんを ぜんぶ うめた あかし。いけの ぬしの かたい うろこ。", -1, { { SkillKind::Def, 2 } }, 0, 0, 15 },
+
+			//しんえん B200F の ヨミノオウの ほうび。しんえんを もぐりなおす ときに やくだつ ものが ちゅうしん
+			{ L"よみの ともしび", L"しんえんの やみを てらす あおい ひ。たからへと みちびく。", Stage::kAbyssFinalBoss,
+				{ { SkillKind::AbyssPower, 15 }, { SkillKind::AbyssGuard, 15 }, { SkillKind::DeepBlessing, 10 }, { SkillKind::Treasure, 15 }, { SkillKind::Luck, 2 },
+				  { SkillKind::Atk, 3 }, { SkillKind::Def, 3 } }, 0, 0 },
 		};
 		return kTable;
 	}
@@ -546,6 +551,10 @@ bool SaveManager::LoadSlot(int index)
 			break;
 		}
 	}
+
+	//「よみの ともしび」が できる まえに ヨミノオウを たおしていた きろくにも わたす
+	const int abyssItem = KeyItem::ForBoss(Stage::kAbyssFinalBoss);
+	if (s.isAbyssCleared && abyssItem >= 0) KeyItem::Give(s, abyssItem);
 	return s.exists;
 }
 

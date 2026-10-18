@@ -1,37 +1,18 @@
 ﻿#include "Unit.h"
 #include "DrawUtil.h"
 #include "PixelArt.h"
+#include "CharaSprite.h"
+#include "Sprite.h"
 #include<DxLib.h>
 #include<cmath>
+#include<algorithm>
 
 using namespace MathUtil;
 
 namespace
 {
-	//ドット絵の 下書き中は かげを かかずに おおきさだけ おぼえる(かげは あとで なめらかに かく)
-	bool isPixelPass = false;
-	float lastShadowW = 0.0f;
-
-	void Eyes(float cx, float cy, float gap, float r, float facing, bool isHurt)
-	{
-		const unsigned int ink = GetColor(30, 30, 40);
-		for (int side = -1; side <= 1; side += 2)
-		{
-			const float ex = cx + gap * side;
-			if (isHurt)
-			{
-				DrawLineAA(ex - r, cy - r, ex + r, cy + r, ink, r * 0.5f);
-				DrawLineAA(ex + r, cy - r, ex - r, cy + r, ink, r * 0.5f);
-				continue;
-			}
-			DrawOvalAA(ex, cy, r * 0.8f, r, 12, GetColor(255, 255, 255), TRUE);
-			DrawCircleAA(ex + facing * r * 0.25f, cy + r * 0.1f, r * 0.5f, 10, ink, TRUE);
-		}
-	}
-
 	void Shadow(const Vec2& feet, float w)
 	{
-		if (isPixelPass) { lastShadowW = w; return; }
 		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 90);
 		DrawOvalAA(feet.x, feet.y, w, w * 0.3f, 16, GetColor(0, 0, 0), TRUE);
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
@@ -332,456 +313,236 @@ namespace
 	}
 }
 
-static void ShapeHero(const Vec2& feet, float size, float time, float facing, bool isHurt, bool hasSword)
-{
-	Shadow(feet, size * 0.7f);
-	const float bob = std::fabs(std::sin(time * 6.0f)) * size * 0.05f;
-	const float cy = feet.y - size * 0.75f - bob;
-
-	//マント
-	DrawTriangleAA(feet.x - size * 0.55f, feet.y - size * 0.1f, feet.x + size * 0.55f, feet.y - size * 0.1f, feet.x, cy - size * 0.3f, GetColor(200, 40, 60), TRUE);
-	//体
-	DrawOvalAA(feet.x, cy + size * 0.2f, size * 0.42f, size * 0.45f, 24, GetColor(60, 100, 200), TRUE);
-	//顔
-	DrawCircleAA(feet.x, cy - size * 0.25f, size * 0.38f, 24, GetColor(255, 220, 190), TRUE);
-	//髪
-	DrawOvalAA(feet.x - facing * size * 0.05f, cy - size * 0.5f, size * 0.42f, size * 0.22f, 20, GetColor(90, 60, 40), TRUE);
-	Eyes(feet.x + facing * size * 0.05f, cy - size * 0.22f, size * 0.14f, size * 0.07f, facing, isHurt);
-	//剣
-	if (!hasSword) return;
-	const float sx = feet.x + facing * size * 0.5f;
-	DrawLineAA(sx, cy + size * 0.3f, sx + facing * size * 0.25f, cy - size * 0.4f, GetColor(220, 230, 240), size * 0.1f);
-	DrawLineAA(sx - size * 0.12f, cy + size * 0.18f, sx + size * 0.12f, cy + size * 0.22f, GetColor(200, 160, 40), size * 0.08f);
-}
-
-static void ShapeMonster(const Vec2& feet, float size, const MonsterData& data, float time, float facing, bool isHurt)
-{
-	const Game::Rgb base = data.color;
-	const unsigned int col = Game::ToColor(base);
-	const unsigned int dark = Game::ToColor(DrawUtil::Scale(base, 0.6f));
-	const unsigned int light = Game::ToColor(DrawUtil::Lerp(base, { 255, 255, 255 }, 0.5f));
-	const float t = time * 5.0f + data.id;
-
-	//かざりを付ける位置(頭の上・体の中心・体の大きさ・頭)
-	Vec2 top = feet;
-	Vec2 body = feet;
-	float bodyR = size * 0.5f;
-	Vec2 head = feet;
-
-	//ずかんの かげ(まだ みていない)には かざりを つけない
-	const bool isSilhouette = base.r < 40 && base.g < 40 && base.b < 40;
-	if (!isSilhouette) DecorBack(data.id, feet, size, t);
-
-	switch (data.shape)
-	{
-	case MonsterShape::Slime:
-	{
-		Shadow(feet, size * 0.75f);
-		const float sq = 1.0f + std::sin(t) * 0.08f;
-		const float rx = size * 0.7f / sq;
-		const float ry = size * 0.55f * sq;
-		const float cy = feet.y - ry;
-		DrawOvalAA(feet.x, cy, rx + 2.0f, ry + 2.0f, 24, dark, TRUE);
-		DrawOvalAA(feet.x, cy, rx, ry, 24, col, TRUE);
-		DrawTriangleAA(feet.x - size * 0.15f, cy - ry * 0.85f, feet.x + size * 0.15f, cy - ry * 0.85f, feet.x, cy - ry * 1.35f, col, TRUE);
-		DrawOvalAA(feet.x - rx * 0.4f, cy - ry * 0.4f, rx * 0.2f, ry * 0.15f, 12, light, TRUE);
-		Eyes(feet.x + facing * size * 0.08f, cy, size * 0.2f, size * 0.1f, facing, isHurt);
-		top = { feet.x, cy - ry * 1.3f };
-		body = { feet.x, cy };
-		bodyR = rx;
-		head = body;
-		break;
-	}
-	case MonsterShape::Bat:
-	{
-		const float fly = std::sin(t * 1.5f) * size * 0.12f;
-		Shadow(feet, size * 0.5f);
-		const float cy = feet.y - size * 0.9f + fly;
-		const float flap = std::sin(t * 4.0f) * size * 0.25f;
-		DrawTriangleAA(feet.x - size * 0.2f, cy, feet.x - size * 0.95f, cy - size * 0.3f + flap, feet.x - size * 0.6f, cy + size * 0.25f, dark, TRUE);
-		DrawTriangleAA(feet.x + size * 0.2f, cy, feet.x + size * 0.95f, cy - size * 0.3f + flap, feet.x + size * 0.6f, cy + size * 0.25f, dark, TRUE);
-		DrawCircleAA(feet.x, cy, size * 0.35f, 20, col, TRUE);
-		DrawTriangleAA(feet.x - size * 0.3f, cy - size * 0.2f, feet.x - size * 0.15f, cy - size * 0.5f, feet.x - size * 0.05f, cy - size * 0.25f, col, TRUE);
-		DrawTriangleAA(feet.x + size * 0.3f, cy - size * 0.2f, feet.x + size * 0.15f, cy - size * 0.5f, feet.x + size * 0.05f, cy - size * 0.25f, col, TRUE);
-		Eyes(feet.x, cy, size * 0.13f, size * 0.08f, facing, isHurt);
-		top = { feet.x, cy - size * 0.45f };
-		body = { feet.x, cy };
-		bodyR = size * 0.35f;
-		head = body;
-		break;
-	}
-	case MonsterShape::Golem:
-	{
-		Shadow(feet, size * 0.8f);
-		const float cy = feet.y - size * 0.6f;
-		DrawBoxAA(feet.x - size * 0.6f, cy - size * 0.45f, feet.x + size * 0.6f, cy + size * 0.55f, dark, TRUE);
-		DrawBoxAA(feet.x - size * 0.55f, cy - size * 0.4f, feet.x + size * 0.55f, cy + size * 0.5f, col, TRUE);
-		DrawBoxAA(feet.x - size * 0.35f, cy - size * 0.85f, feet.x + size * 0.35f, cy - size * 0.35f, col, TRUE);
-		DrawBoxAA(feet.x - size * 0.85f, cy - size * 0.3f, feet.x - size * 0.6f, cy + size * 0.3f, dark, TRUE);
-		DrawBoxAA(feet.x + size * 0.6f, cy - size * 0.3f, feet.x + size * 0.85f, cy + size * 0.3f, dark, TRUE);
-		DrawLineAA(feet.x - size * 0.3f, cy, feet.x + size * 0.1f, cy + size * 0.3f, dark, 2.0f);
-		Eyes(feet.x + facing * size * 0.05f, cy - size * 0.6f, size * 0.15f, size * 0.08f, facing, isHurt);
-		top = { feet.x, cy - size * 0.85f };
-		body = { feet.x, cy };
-		bodyR = size * 0.6f;
-		head = { feet.x, cy - size * 0.6f };
-		break;
-	}
-	case MonsterShape::Ghost:
-	{
-		const float fly = std::sin(t) * size * 0.1f;
-		Shadow(feet, size * 0.45f);
-		const float cy = feet.y - size * 0.8f + fly;
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 220);
-		DrawCircleAA(feet.x, cy, size * 0.5f, 24, col, TRUE);
-		DrawBoxAA(feet.x - size * 0.5f, cy, feet.x + size * 0.5f, cy + size * 0.45f, col, TRUE);
-		for (int k = 0; k < 3; k++)
-		{
-			const float wx = feet.x - size * 0.5f + size * (k + 0.5f) / 3.0f;
-			DrawTriangleAA(wx - size * 0.17f, cy + size * 0.44f, wx + size * 0.17f, cy + size * 0.44f, wx + std::sin(t + k) * size * 0.08f, cy + size * 0.7f, col, TRUE);
-		}
-		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		SetDrawBlendMode(DX_BLENDMODE_ADD, 70);
-		DrawCircleAA(feet.x, cy, size * 0.65f, 24, col, TRUE);
-		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		Eyes(feet.x + facing * size * 0.06f, cy - size * 0.05f, size * 0.17f, size * 0.09f, facing, isHurt);
-		top = { feet.x, cy - size * 0.5f };
-		body = { feet.x, cy };
-		bodyR = size * 0.5f;
-		head = body;
-		break;
-	}
-	case MonsterShape::Beast:
-	{
-		Shadow(feet, size * 0.75f);
-		const float step = std::sin(t * 1.5f) * size * 0.05f;
-		const float cy = feet.y - size * 0.5f;
-		for (int k = -1; k <= 1; k += 2)
-		{
-			DrawBoxAA(feet.x + k * size * 0.35f - size * 0.08f, cy + size * 0.1f, feet.x + k * size * 0.35f + size * 0.08f, feet.y - (k > 0 ? step : -step), dark, TRUE);
-		}
-		DrawOvalAA(feet.x, cy, size * 0.6f, size * 0.35f, 24, col, TRUE);
-		const float hx = feet.x + facing * size * 0.5f;
-		DrawCircleAA(hx, cy - size * 0.3f, size * 0.32f, 20, col, TRUE);
-		DrawTriangleAA(hx - size * 0.25f, cy - size * 0.45f, hx - size * 0.1f, cy - size * 0.8f, hx, cy - size * 0.5f, dark, TRUE);
-		DrawTriangleAA(hx + size * 0.25f, cy - size * 0.45f, hx + size * 0.1f, cy - size * 0.8f, hx, cy - size * 0.5f, dark, TRUE);
-		DrawLineAA(feet.x - facing * size * 0.55f, cy, feet.x - facing * size * 0.85f, cy - size * 0.3f + step * 3.0f, dark, size * 0.1f);
-		Eyes(hx + facing * size * 0.05f, cy - size * 0.32f, size * 0.12f, size * 0.07f, facing, isHurt);
-		top = { hx, cy - size * 0.62f };
-		body = { feet.x, cy };
-		bodyR = size * 0.6f;
-		head = { hx, cy - size * 0.3f };
-		break;
-	}
-	case MonsterShape::Dragon:
-	{
-		Shadow(feet, size * 0.9f);
-		const float cy = feet.y - size * 0.6f;
-		const float flap = std::sin(t * 2.0f) * size * 0.15f;
-		DrawTriangleAA(feet.x - size * 0.2f, cy - size * 0.2f, feet.x - size * 1.0f, cy - size * 0.8f + flap, feet.x - size * 0.6f, cy + size * 0.1f, dark, TRUE);
-		DrawTriangleAA(feet.x + size * 0.2f, cy - size * 0.2f, feet.x + size * 1.0f, cy - size * 0.8f + flap, feet.x + size * 0.6f, cy + size * 0.1f, dark, TRUE);
-		DrawOvalAA(feet.x, cy, size * 0.55f, size * 0.5f, 24, col, TRUE);
-		DrawOvalAA(feet.x, cy + size * 0.15f, size * 0.32f, size * 0.3f, 20, light, TRUE);
-		const float hx = feet.x + facing * size * 0.35f;
-		DrawCircleAA(hx, cy - size * 0.55f, size * 0.33f, 20, col, TRUE);
-		DrawTriangleAA(hx - size * 0.2f, cy - size * 0.75f, hx - size * 0.1f, cy - size * 1.05f, hx, cy - size * 0.8f, light, TRUE);
-		DrawTriangleAA(hx + size * 0.2f, cy - size * 0.75f, hx + size * 0.1f, cy - size * 1.05f, hx, cy - size * 0.8f, light, TRUE);
-		Eyes(hx + facing * size * 0.06f, cy - size * 0.58f, size * 0.12f, size * 0.07f, facing, isHurt);
-		top = { hx, cy - size * 0.95f };
-		body = { feet.x, cy };
-		bodyR = size * 0.55f;
-		head = { hx, cy - size * 0.55f };
-		break;
-	}
-	case MonsterShape::Bird:
-	{
-		Shadow(feet, size * 0.6f);
-		const float hop = std::fabs(std::sin(t * 1.2f)) * size * 0.06f;
-		const float cy = feet.y - size * 0.8f - hop;
-		const unsigned int leg = GetColor(230, 170, 60);
-		DrawLineAA(feet.x - size * 0.12f, cy + size * 0.2f, feet.x - size * 0.15f, feet.y, leg, size * 0.06f);
-		DrawLineAA(feet.x + size * 0.12f, cy + size * 0.2f, feet.x + size * 0.15f, feet.y, leg, size * 0.06f);
-		//しっぽ
-		DrawTriangleAA(feet.x - facing * size * 0.3f, cy - size * 0.05f, feet.x - facing * size * 0.3f, cy + size * 0.2f, feet.x - facing * size * 0.85f, cy - size * 0.35f, dark, TRUE);
-		DrawOvalAA(feet.x, cy, size * 0.45f, size * 0.36f, 24, col, TRUE);
-		DrawOvalAA(feet.x + facing * size * 0.1f, cy + size * 0.1f, size * 0.25f, size * 0.2f, 16, light, TRUE);
-		//つばさ
-		const float flap = std::sin(t * 2.0f) * size * 0.05f;
-		DrawOvalAA(feet.x - facing * size * 0.1f, cy - size * 0.02f + flap, size * 0.28f, size * 0.18f, 16, dark, TRUE);
-		const float hx = feet.x + facing * size * 0.32f;
-		const float hy = cy - size * 0.42f;
-		DrawCircleAA(hx, hy, size * 0.24f, 20, col, TRUE);
-		DrawTriangleAA(hx + facing * size * 0.18f, hy - size * 0.06f, hx + facing * size * 0.18f, hy + size * 0.08f, hx + facing * size * 0.45f, hy + size * 0.02f, GetColor(250, 200, 70), TRUE);
-		Eyes(hx + facing * size * 0.06f, hy - size * 0.03f, size * 0.09f, size * 0.065f, facing, isHurt);
-		top = { hx, hy - size * 0.24f };
-		body = { feet.x, cy };
-		bodyR = size * 0.45f;
-		head = { hx, hy };
-		break;
-	}
-	case MonsterShape::Knight:
-	{
-		Shadow(feet, size * 0.7f);
-		const float step = std::sin(t * 1.2f) * size * 0.03f;
-		const float cy = feet.y - size * 0.75f;
-		const unsigned int metal = col;
-		//あし
-		DrawBoxAA(feet.x - size * 0.3f, cy + size * 0.3f, feet.x - size * 0.08f, feet.y - step, dark, TRUE);
-		DrawBoxAA(feet.x + size * 0.08f, cy + size * 0.3f, feet.x + size * 0.3f, feet.y + step, dark, TRUE);
-		//どう
-		DrawQuadrangleAA(feet.x - size * 0.45f, cy - size * 0.3f, feet.x + size * 0.45f, cy - size * 0.3f, feet.x + size * 0.35f, cy + size * 0.35f, feet.x - size * 0.35f, cy + size * 0.35f, metal, TRUE);
-		DrawLineAA(feet.x, cy - size * 0.25f, feet.x, cy + size * 0.3f, dark, 2.0f);
-		DrawLineAA(feet.x - size * 0.3f, cy, feet.x + size * 0.3f, cy, light, 2.0f);
-		//かた
-		DrawCircleAA(feet.x - size * 0.45f, cy - size * 0.25f, size * 0.18f, 16, light, TRUE);
-		DrawCircleAA(feet.x + size * 0.45f, cy - size * 0.25f, size * 0.18f, 16, light, TRUE);
-		//かぶと
-		const float hy = cy - size * 0.55f;
-		DrawCircleAA(feet.x, hy, size * 0.28f, 20, metal, TRUE);
-		DrawBoxAA(feet.x - size * 0.28f, hy, feet.x + size * 0.28f, hy + size * 0.18f, metal, TRUE);
-		DrawBoxAA(feet.x - size * 0.22f, hy - size * 0.02f, feet.x + size * 0.22f, hy + size * 0.06f, GetColor(20, 20, 30), TRUE);
-		DrawTriangleAA(feet.x - size * 0.05f, hy - size * 0.26f, feet.x + size * 0.05f, hy - size * 0.26f, feet.x - facing * size * 0.15f, hy - size * 0.55f, GetColor(200, 50, 60), TRUE);
-		if (isHurt) Eyes(feet.x, hy + size * 0.02f, size * 0.1f, size * 0.05f, facing, true);
-		else
-		{
-			SetDrawBlendMode(DX_BLENDMODE_ADD, 220);
-			DrawCircleAA(feet.x - size * 0.09f + facing * size * 0.03f, hy + size * 0.02f, size * 0.04f, 8, light, TRUE);
-			DrawCircleAA(feet.x + size * 0.09f + facing * size * 0.03f, hy + size * 0.02f, size * 0.04f, 8, light, TRUE);
-			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		}
-		//けん と たて
-		const float sx = feet.x + facing * size * 0.55f;
-		DrawLineAA(sx, cy + size * 0.2f, sx, cy - size * 0.75f, GetColor(220, 225, 235), size * 0.08f);
-		DrawLineAA(sx - size * 0.12f, cy + size * 0.1f, sx + size * 0.12f, cy + size * 0.1f, GetColor(200, 160, 40), size * 0.06f);
-		const float shx = feet.x - facing * size * 0.5f;
-		DrawOvalAA(shx, cy + size * 0.05f, size * 0.2f, size * 0.3f, 16, dark, TRUE);
-		DrawOvalAA(shx, cy + size * 0.05f, size * 0.14f, size * 0.23f, 16, light, TRUE);
-		top = { feet.x, hy - size * 0.3f };
-		body = { feet.x, cy };
-		bodyR = size * 0.5f;
-		head = { feet.x, hy };
-		break;
-	}
-	case MonsterShape::Spirit:
-	{
-		const float fly = std::sin(t * 0.8f) * size * 0.1f;
-		Shadow(feet, size * 0.4f);
-		const float cy = feet.y - size * 0.85f + fly;
-		//はね
-		const float flap = std::sin(t * 3.0f) * 0.25f + 0.75f;
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
-		for (int side = -1; side <= 1; side += 2)
-		{
-			DrawOvalAA(feet.x + side * size * 0.38f * flap, cy - size * 0.2f, size * 0.3f * flap, size * 0.18f, 16, light, TRUE);
-			DrawOvalAA(feet.x + side * size * 0.3f * flap, cy + size * 0.08f, size * 0.22f * flap, size * 0.12f, 16, light, TRUE);
-		}
-		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		//ひかり
-		SetDrawBlendMode(DX_BLENDMODE_ADD, 60);
-		DrawCircleAA(feet.x, cy, size * 0.6f, 24, col, TRUE);
-		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		//ドレス
-		DrawTriangleAA(feet.x - size * 0.3f, cy + size * 0.4f, feet.x + size * 0.3f, cy + size * 0.4f, feet.x, cy - size * 0.2f, col, TRUE);
-		DrawTriangleAA(feet.x - size * 0.15f, cy + size * 0.4f, feet.x + size * 0.15f, cy + size * 0.4f, feet.x, cy, light, TRUE);
-		const float hy = cy - size * 0.32f;
-		DrawCircleAA(feet.x, hy, size * 0.22f, 20, GetColor(255, 235, 215), TRUE);
-		DrawOvalAA(feet.x, hy - size * 0.12f, size * 0.25f, size * 0.13f, 16, col, TRUE);
-		DrawCircleAA(feet.x - facing * size * 0.2f, hy + size * 0.02f, size * 0.1f, 12, col, TRUE);
-		Eyes(feet.x + facing * size * 0.04f, hy + size * 0.02f, size * 0.08f, size * 0.055f, facing, isHurt);
-		top = { feet.x, hy - size * 0.22f };
-		body = { feet.x, cy };
-		bodyR = size * 0.35f;
-		head = { feet.x, hy };
-		break;
-	}
-	case MonsterShape::Giant:
-	{
-		Shadow(feet, size * 0.9f);
-		const float breath = std::sin(t * 0.8f) * size * 0.03f;
-		const float cy = feet.y - size * 0.7f;
-		//あし
-		DrawBoxAA(feet.x - size * 0.4f, cy + size * 0.3f, feet.x - size * 0.12f, feet.y, dark, TRUE);
-		DrawBoxAA(feet.x + size * 0.12f, cy + size * 0.3f, feet.x + size * 0.4f, feet.y, dark, TRUE);
-		//うで
-		for (int side = -1; side <= 1; side += 2)
-		{
-			DrawLineAA(feet.x + side * size * 0.55f, cy - size * 0.35f, feet.x + side * size * 0.8f, cy + size * 0.15f + breath, dark, size * 0.22f);
-			DrawCircleAA(feet.x + side * size * 0.82f, cy + size * 0.25f + breath, size * 0.17f, 16, col, TRUE);
-		}
-		//からだ
-		DrawQuadrangleAA(feet.x - size * 0.7f, cy - size * 0.5f + breath, feet.x + size * 0.7f, cy - size * 0.5f + breath, feet.x + size * 0.42f, cy + size * 0.4f, feet.x - size * 0.42f, cy + size * 0.4f, col, TRUE);
-		DrawOvalAA(feet.x, cy + size * 0.05f, size * 0.3f, size * 0.25f, 20, light, TRUE);
-		//あたま と つの
-		const float hy = cy - size * 0.68f + breath;
-		DrawCircleAA(feet.x, hy, size * 0.25f, 20, col, TRUE);
-		for (int side = -1; side <= 1; side += 2)
-		{
-			DrawTriangleAA(feet.x + side * size * 0.12f, hy - size * 0.15f, feet.x + side * size * 0.25f, hy - size * 0.08f, feet.x + side * size * 0.38f, hy - size * 0.5f, GetColor(240, 230, 200), TRUE);
-		}
-		if (isHurt) Eyes(feet.x, hy, size * 0.1f, size * 0.06f, facing, true);
-		else
-		{
-			SetDrawBlendMode(DX_BLENDMODE_ADD, 255);
-			DrawOvalAA(feet.x - size * 0.09f + facing * size * 0.03f, hy, size * 0.06f, size * 0.035f, 8, GetColor(255, 220, 80), TRUE);
-			DrawOvalAA(feet.x + size * 0.09f + facing * size * 0.03f, hy, size * 0.06f, size * 0.035f, 8, GetColor(255, 220, 80), TRUE);
-			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		}
-		DrawLineAA(feet.x - size * 0.08f, hy + size * 0.13f, feet.x + size * 0.08f, hy + size * 0.13f, GetColor(30, 20, 20), 2.0f);
-		top = { feet.x, hy - size * 0.45f };
-		body = { feet.x, cy };
-		bodyR = size * 0.7f;
-		head = { feet.x, hy };
-		break;
-	}
-	case MonsterShape::Priest:
-	{
-		const float fly = std::sin(t * 0.7f) * size * 0.06f;
-		Shadow(feet, size * 0.6f);
-		const float cy = feet.y - size * 0.7f + fly;
-		//ローブ
-		DrawQuadrangleAA(feet.x - size * 0.25f, cy - size * 0.35f, feet.x + size * 0.25f, cy - size * 0.35f, feet.x + size * 0.55f, feet.y - size * 0.05f + fly, feet.x - size * 0.55f, feet.y - size * 0.05f + fly, col, TRUE);
-		DrawQuadrangleAA(feet.x - size * 0.08f, cy - size * 0.3f, feet.x + size * 0.08f, cy - size * 0.3f, feet.x + size * 0.14f, feet.y - size * 0.05f + fly, feet.x - size * 0.14f, feet.y - size * 0.05f + fly, GetColor(220, 190, 90), TRUE);
-		for (int k = 0; k < 4; k++)
-		{
-			const float bx = feet.x - size * 0.45f + k * size * 0.3f;
-			DrawTriangleAA(bx, feet.y - size * 0.06f + fly, bx + size * 0.3f, feet.y - size * 0.06f + fly, bx + size * 0.15f, feet.y + size * 0.04f + fly, col, TRUE);
-		}
-		//フード
-		const float hy = cy - size * 0.5f;
-		DrawCircleAA(feet.x, hy, size * 0.3f, 20, dark, TRUE);
-		DrawTriangleAA(feet.x - size * 0.3f, hy, feet.x + size * 0.3f, hy, feet.x - facing * size * 0.1f, hy - size * 0.55f, dark, TRUE);
-		DrawCircleAA(feet.x + facing * size * 0.04f, hy + size * 0.04f, size * 0.2f, 20, GetColor(15, 10, 20), TRUE);
-		if (isHurt) Eyes(feet.x + facing * size * 0.04f, hy + size * 0.04f, size * 0.08f, size * 0.05f, facing, true);
-		else
-		{
-			SetDrawBlendMode(DX_BLENDMODE_ADD, 255);
-			DrawCircleAA(feet.x - size * 0.06f + facing * size * 0.06f, hy + size * 0.04f, size * 0.04f, 8, light, TRUE);
-			DrawCircleAA(feet.x + size * 0.08f + facing * size * 0.06f, hy + size * 0.04f, size * 0.04f, 8, light, TRUE);
-			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		}
-		//つえ
-		const float sx = feet.x + facing * size * 0.6f;
-		DrawLineAA(sx, feet.y - size * 0.02f, sx, cy - size * 0.85f, GetColor(120, 90, 60), size * 0.07f);
-		DrawCircleAA(sx, cy - size * 0.95f, size * 0.12f, 16, GetColor(200, 170, 70), FALSE, 3.0f);
-		SetDrawBlendMode(DX_BLENDMODE_ADD, static_cast<int>(160 + 80 * std::sin(t)));
-		DrawCircleAA(sx, cy - size * 0.95f, size * 0.12f, 16, light, TRUE);
-		DrawCircleAA(sx, cy - size * 0.95f, size * 0.22f, 16, col, TRUE);
-		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		top = { feet.x - facing * size * 0.1f, hy - size * 0.55f };
-		body = { feet.x, cy };
-		bodyR = size * 0.5f;
-		head = { feet.x, hy };
-		break;
-	}
-	case MonsterShape::Crab:
-	{
-		//ひらたい こうらに 大きな はさみ、よこに うごく あし
-		Shadow(feet, size * 0.85f);
-		const float cy = feet.y - size * 0.42f;
-		const float clack = std::fabs(std::sin(t * 2.0f)) * size * 0.08f;
-		for (int k = -1; k <= 1; k += 2)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				const float lx = feet.x + k * size * (0.3f + j * 0.14f);
-				DrawLineAA(lx, cy, lx + k * size * 0.18f, feet.y - std::sin(t * 2.0f + j) * size * 0.04f, dark, size * 0.07f);
-			}
-		}
-		DrawOvalAA(feet.x, cy, size * 0.62f, size * 0.36f, 24, col, TRUE);
-		DrawOvalAA(feet.x, cy - size * 0.08f, size * 0.45f, size * 0.2f, 20, light, TRUE);
-		for (int k = -1; k <= 1; k += 2)
-		{
-			const float px = feet.x + k * size * 0.78f;
-			const float py = cy - size * 0.42f;
-			DrawLineAA(feet.x + k * size * 0.45f, cy - size * 0.1f, px, py + size * 0.15f, dark, size * 0.1f);
-			DrawCircleAA(px, py, size * 0.22f, 16, col, TRUE);
-			DrawTriangleAA(px - size * 0.12f, py - size * 0.08f, px + size * 0.12f, py - size * 0.08f, px, py - size * 0.22f - clack, dark, TRUE);
-		}
-		Eyes(feet.x, cy - size * 0.4f, size * 0.14f, size * 0.07f, facing, isHurt);
-		top = { feet.x, cy - size * 0.55f };
-		body = { feet.x, cy };
-		bodyR = size * 0.6f;
-		head = { feet.x, cy - size * 0.35f };
-		break;
-	}
-	case MonsterShape::Doll:
-	{
-		//ふわっと うく にんぎょう(まるい あたま・スカート・ぬいめ)
-		const float fly = size * 0.1f + std::sin(t) * size * 0.06f;
-		Shadow(feet, size * 0.45f);
-		const float cy = feet.y - size * 0.55f - fly;
-		DrawTriangleAA(feet.x - size * 0.4f, cy + size * 0.35f, feet.x + size * 0.4f, cy + size * 0.35f, feet.x, cy - size * 0.2f, dark, TRUE);
-		DrawOvalAA(feet.x, cy + size * 0.05f, size * 0.25f, size * 0.3f, 16, col, TRUE);
-		const float hy = cy - size * 0.42f;
-		DrawCircleAA(feet.x, hy, size * 0.3f, 20, col, TRUE);
-		DrawOvalAA(feet.x, hy - size * 0.2f, size * 0.33f, size * 0.15f, 16, GetColor(90, 50, 70), TRUE);
-		DrawLineAA(feet.x - size * 0.08f, hy + size * 0.18f, feet.x + size * 0.08f, hy + size * 0.22f, GetColor(120, 40, 60), size * 0.04f);
-		DrawLineAA(feet.x - size * 0.22f, cy - size * 0.05f, feet.x - size * 0.4f, cy + size * 0.12f + std::sin(t * 2.0f) * size * 0.05f, col, size * 0.08f);
-		DrawLineAA(feet.x + size * 0.22f, cy - size * 0.05f, feet.x + size * 0.4f, cy + size * 0.12f - std::sin(t * 2.0f) * size * 0.05f, col, size * 0.08f);
-		Eyes(feet.x + facing * size * 0.04f, hy, size * 0.12f, size * 0.07f, facing, isHurt);
-		top = { feet.x, hy - size * 0.35f };
-		body = { feet.x, cy };
-		bodyR = size * 0.35f;
-		head = { feet.x, hy };
-		break;
-	}
-	case MonsterShape::Rat:
-	{
-		//ちいさな からだに 大きな みみと ながい しっぽ
-		Shadow(feet, size * 0.55f);
-		const float hop = std::fabs(std::sin(t * 2.5f)) * size * 0.08f;
-		const float cy = feet.y - size * 0.3f - hop;
-		DrawLineAA(feet.x - facing * size * 0.35f, cy + size * 0.1f, feet.x - facing * size * 0.8f, cy - size * 0.15f + std::sin(t * 3.0f) * size * 0.08f, dark, size * 0.05f);
-		DrawOvalAA(feet.x, cy, size * 0.42f, size * 0.28f, 20, col, TRUE);
-		const float hx = feet.x + facing * size * 0.32f;
-		DrawCircleAA(hx, cy - size * 0.12f, size * 0.22f, 16, col, TRUE);
-		DrawCircleAA(hx - size * 0.12f, cy - size * 0.36f, size * 0.13f, 12, dark, TRUE);
-		DrawCircleAA(hx + size * 0.12f, cy - size * 0.36f, size * 0.13f, 12, dark, TRUE);
-		DrawCircleAA(hx + facing * size * 0.2f, cy - size * 0.08f, size * 0.05f, 8, GetColor(240, 120, 140), TRUE);
-		//ぬすんだ ものを いれる ふくろ
-		DrawCircleAA(feet.x - facing * size * 0.15f, cy - size * 0.18f, size * 0.14f, 12, GetColor(200, 170, 110), TRUE);
-		Eyes(hx + facing * size * 0.04f, cy - size * 0.14f, size * 0.09f, size * 0.05f, facing, isHurt);
-		top = { hx, cy - size * 0.45f };
-		body = { feet.x, cy };
-		bodyR = size * 0.42f;
-		head = { hx, cy - size * 0.12f };
-		break;
-	}
-	}
-
-	if (!isSilhouette) Decor(data.id, feet, size, t, facing, top, body, bodyR, head);
-}
-
 //==============================//
-// ドット絵で かく(まえの ずけいの キャラを 1/3 で かいて 3ばいに ひろげる。小さい ときは 1/2 で 2ばい)
+// ドット絵の キャラ(data/gfx/chara。かざりは まえと おなじく ずけいを ドット絵に して かさねる)
 //==============================//
 
 namespace
 {
-	//せいれいは もともと 小さい かたちなので ドット絵では すこし 大きく かく
-	constexpr float kSpiritRate = 1.4f;
-	constexpr float kSmallBodyRate = 1.3f;	//にんぎょう・ねずみも 小さめ なので
+	enum class Motion
+	{
+		Walk,	//フレームを じゅんに かえる
+		Hop,	//1まい絵を ぴょこぴょこ させる
+		Float,	//ういて ゆれる
+	};
+
+	struct Look
+	{
+		CharaArt art;
+		float tint;		//体の いろ(MonsterData::color)に ぬりかえる つよさ(0は そざいの まま)
+		float zoom;		//ふつうの 16ドットの 絵を 1 とした 大きさ
+		Motion motion;
+		float fps;		//0は 1まい目 だけ
+	};
+
+	//モンスターID の じゅんばん
+	constexpr Look kLooks[] =
+	{
+		{ CharaArt::SlimeGreen, 0.0f, 1.0f, Motion::Walk, 4.0f },		//0 プルン
+		{ CharaArt::Bat, 0.8f, 1.0f, Motion::Float, 0.0f },				//1 コウモン
+		{ CharaArt::Mole, 0.45f, 1.0f, Motion::Walk, 4.0f },			//2 モグモグ
+		{ CharaArt::Drop, 0.7f, 1.0f, Motion::Float, 4.0f },			//3 ヒールン
+		{ CharaArt::Rock, 0.5f, 1.0f, Motion::Hop, 0.0f },				//4 イシコロ
+		{ CharaArt::Flame, 0.0f, 1.0f, Motion::Float, 6.0f },			//5 ヒノタマ
+		{ CharaArt::Wolf, 0.65f, 1.1f, Motion::Walk, 3.0f },			//6 ガルル
+		{ CharaArt::Ghost, 0.45f, 1.0f, Motion::Float, 4.0f },			//7 ユーレイ
+		{ CharaArt::SlimeBlue, 0.0f, 1.0f, Motion::Walk, 4.0f },		//8 コオリプルン
+		{ CharaArt::Bat, 0.8f, 1.0f, Motion::Float, 0.0f },				//9 ヨルバット
+		{ CharaArt::Golem, 0.55f, 0.9f, Motion::Walk, 3.0f },			//10 ゴロゴーレム
+		{ CharaArt::Orb, 0.55f, 1.0f, Motion::Float, 4.0f },			//11 マホウダマ
+		{ CharaArt::SlimeBlue, 0.8f, 1.0f, Motion::Walk, 4.0f },		//12 ドクプルン
+		{ CharaArt::Wolf, 0.8f, 1.1f, Motion::Walk, 3.0f },				//13 ホムラウルフ
+		{ CharaArt::Ghost, 0.6f, 1.0f, Motion::Float, 4.0f },			//14 モリノセイレイ
+		{ CharaArt::DragonGreen, 0.0f, 1.0f, Motion::Walk, 4.0f },		//15 コドラ
+		{ CharaArt::Golem, 0.65f, 0.9f, Motion::Walk, 3.0f },			//16 テツゴーレム
+		{ CharaArt::Ghost, 0.85f, 1.0f, Motion::Float, 4.0f },			//17 カゲボウシ
+		{ CharaArt::SlimeBlue, 0.85f, 1.0f, Motion::Walk, 4.0f },		//18 キラプルン
+		{ CharaArt::DragonBoss, 0.7f, 0.18f, Motion::Float, 0.0f },		//19 マオウドラゴン
+		{ CharaArt::SlimeBlue, 0.6f, 1.0f, Motion::Walk, 4.0f },		//20 ユキプルン
+		{ CharaArt::Bat, 0.8f, 1.0f, Motion::Float, 0.0f },				//21 フブキバット
+		{ CharaArt::Golem, 0.7f, 0.9f, Motion::Walk, 3.0f },			//22 コオリゴーレム
+		{ CharaArt::Wolf, 0.8f, 1.1f, Motion::Walk, 3.0f },				//23 アイスウルフ
+		{ CharaArt::SpiritIce, 0.0f, 1.0f, Motion::Float, 5.0f },		//24 ユキノセイ
+		{ CharaArt::SlimeBlue, 0.85f, 1.0f, Motion::Walk, 4.0f },		//25 マグマプルン
+		{ CharaArt::Bird, 0.45f, 1.0f, Motion::Walk, 4.0f },			//26 ヒクイドリ
+		{ CharaArt::Golem, 0.75f, 0.9f, Motion::Walk, 3.0f },			//27 ヨウガンゴーレム
+		{ CharaArt::Wolf, 0.8f, 1.1f, Motion::Walk, 3.0f },				//28 カエンオオカミ
+		{ CharaArt::SpiritFire, 0.0f, 1.0f, Motion::Float, 5.0f },		//29 ヒノセイレイ
+		{ CharaArt::SlimeBlue, 0.85f, 1.0f, Motion::Walk, 4.0f },		//30 ヤミプルン
+		{ CharaArt::Bat, 0.85f, 1.0f, Motion::Float, 0.0f },			//31 シニガミバット
+		{ CharaArt::ArmorDark, 0.35f, 1.0f, Motion::Hop, 0.0f },		//32 ノロイノヨロイ
+		{ CharaArt::Wolf, 0.85f, 1.1f, Motion::Walk, 3.0f },			//33 ヤミオオカミ
+		{ CharaArt::Ghost, 0.6f, 1.0f, Motion::Float, 4.0f },			//34 ボウレイ
+		{ CharaArt::SlimeBlue, 0.55f, 1.0f, Motion::Walk, 4.0f },		//35 ソラプルン
+		{ CharaArt::Bat, 0.85f, 1.0f, Motion::Float, 0.0f },			//36 カミナリバット
+		{ CharaArt::ArmorHoly, 0.55f, 1.0f, Motion::Hop, 0.0f },		//37 テンシノヨロイ
+		{ CharaArt::Lion, 0.25f, 1.0f, Motion::Hop, 0.0f },				//38 ライジュウ
+		{ CharaArt::SpiritIce, 0.7f, 1.0f, Motion::Float, 5.0f },		//39 ホシノセイレイ
+		{ CharaArt::KingSlime, 0.8f, 0.3f, Motion::Walk, 5.0f },		//40 キングプルン
+		{ CharaArt::DragonBoss, 0.3f, 0.18f, Motion::Float, 0.0f },		//41 ヒョウガドラゴン
+		{ CharaArt::Demon, 0.25f, 0.36f, Motion::Walk, 5.0f },			//42 ヨウガンマジン
+		{ CharaArt::Priest, 0.35f, 1.0f, Motion::Hop, 0.0f },			//43 ヤミノシンカン
+		{ CharaArt::DragonBoss, 0.7f, 0.18f, Motion::Float, 0.0f },		//44 テンクウノオウ
+		{ CharaArt::SlimeBlue, 0.75f, 1.0f, Motion::Walk, 4.0f },		//45 モヤプルン
+		{ CharaArt::Crab, 0.35f, 0.95f, Motion::Walk, 5.0f },			//46 タテガニ
+		{ CharaArt::Boar, 0.3f, 1.0f, Motion::Walk, 3.0f },				//47 トッシンボア
+		{ CharaArt::Doll, 0.4f, 1.0f, Motion::Hop, 0.0f },				//48 ノロイニンギョウ
+		{ CharaArt::Rock, 0.65f, 1.0f, Motion::Hop, 0.0f },				//49 バクダンイワ
+		{ CharaArt::Rat, 0.3f, 1.0f, Motion::Walk, 3.0f },				//50 ヌスミネズミ
+		{ CharaArt::DragonBoss, 0.85f, 0.18f, Motion::Float, 0.0f },		//51 ヨミノオウ
+	};
+	constexpr int kLookNum = static_cast<int>(sizeof(kLooks) / sizeof(kLooks[0]));
+
+	constexpr float kBaseSize = 34.0f;	//ダンジョンの ふつうの 大きさ。この とき 1ドットを 3ピクセルで かく(ゆかの タイルと おなじ)
+	constexpr float kShinyTint = 0.8f;	//いろちがいは そざいの いろを つよく ぬりかえる
+
+	const Look& LookOf(int id)
+	{
+		return kLooks[(id >= 0 && id < kLookNum) ? id : 0];
+	}
+
+	/// <summary>
+	/// そざいの 1ドットを なんピクセルで かくか(大きい ときは ぼやけない ように せいすうに そろえる)
+	/// </summary>
+	float ArtScale(float size, float zoom)
+	{
+		const float s = size / kBaseSize * PixelArt::kDot * zoom;
+		return s >= 1.0f ? std::floor(s + 0.5f) : s;
+	}
+
+	/// <summary>
+	/// 体の 下の まんなかを feet に あわせて かく
+	/// </summary>
+	void DrawArt(int handle, const CharaSprite::Info& info, const Vec2& feet, float scale, bool flipX)
+	{
+		const float cx = (info.left + info.right) * 0.5f;
+		const float x = std::floor(feet.x - (flipX ? info.frameW - cx : cx) * scale + 0.5f);
+		const float y = std::floor(feet.y - info.bottom * scale + 0.5f);
+		Sprite::DrawRect(handle, x, y, info.frameW * scale, info.frameH * scale, flipX);
+	}
+
+	/// <summary>
+	/// いまの あかるさに かけあわせて かく(ずかんの かげ・ダメージの あか)
+	/// </summary>
+	class BrightScope
+	{
+	public:
+		BrightScope(int r, int g, int b)
+		{
+			GetDrawBright(&r_, &g_, &b_);
+			SetDrawBright(r_ * r / 255, g_ * g / 255, b_ * b / 255);
+		}
+		~BrightScope() { SetDrawBright(r_, g_, b_); }
+	private:
+		int r_ = 255;
+		int g_ = 255;
+		int b_ = 255;
+	};
+
+	bool HasDecorBack(int id)
+	{
+		return id == 30 || id == 32 || id == 33 || id == 35 || id == 37 || id == 40 || id == 43 || id == 44;
+	}
+
+	bool HasDecor(int id)
+	{
+		return id >= 20 && id <= 44 && id != 32 && id != 43;
+	}
+
+	bool IsSameColor(const Game::Rgb& a, const Game::Rgb& b)
+	{
+		return a.r == b.r && a.g == b.g && a.b == b.b;
+	}
 }
 
 void UnitDraw::Hero(const Vec2& feet, float size, float time, float facing, bool isHurt, bool hasSword)
 {
-	const int dot = PixelArt::DotFor(size);
-	isPixelPass = true;
-	PixelArt::Draw(feet, dot,
-		[&](const Vec2& f, float s) { ShapeHero(f, size * s, time, facing, isHurt, hasSword); },
-		[&]() { isPixelPass = false; Shadow(feet, lastShadowW * dot); });
-	isPixelPass = false;
+	const CharaSprite::Info& info = CharaSprite::Get(CharaArt::Hero);
+	const float scale = ArtScale(size, 1.0f);
+	const int frame = static_cast<int>(time * 4.0f) % info.frames;
+	const bool flipX = facing < 0.0f;
+
+	Shadow(feet, (info.right - info.left) * scale * 0.45f);
+	BrightScope bright(255, isHurt ? 120 : 255, isHurt ? 120 : 255);
+	DrawArt(CharaSprite::Frame(CharaArt::Hero, frame), info, feet, scale, flipX);
+
+	//てに もった けん(からだの よこ)
+	if (!hasSword) return;
+	const CharaSprite::Info& sword = CharaSprite::Get(CharaArt::Sword);
+	const Vec2 hand = { feet.x + facing * (info.right - info.left) * 0.5f * scale, feet.y - scale };
+	DrawArt(CharaSprite::Frame(CharaArt::Sword, 0), sword, hand, scale, flipX);
+}
+
+float UnitDraw::FitMonsterSize(float size, const MonsterData& data, float maxHeight)
+{
+	const Look& look = LookOf(data.id);
+	const CharaSprite::Info& info = CharaSprite::Get(look.art);
+	const float spriteH = static_cast<float>(info.bottom - info.top);
+	//大きさを すこしずつ へらして おさまる ところを さがす(ドットの 大きさが せいすうに そろうので とびとび になる)
+	for (int k = 0; k < 24 && size > 4.0f; k++)
+	{
+		if (spriteH * ArtScale(size, look.zoom) <= maxHeight) break;
+		size *= 0.92f;
+	}
+	return size;
 }
 
 void UnitDraw::Monster(const Vec2& feet, float size, const MonsterData& data, float time, float facing, bool isHurt)
 {
+	const Look& look = LookOf(data.id);
+	const CharaSprite::Info& info = CharaSprite::Get(look.art);
+	const float scale = ArtScale(size, look.zoom);
+	const float t = time * 5.0f + data.id;
+	const bool flipX = facing < 0.0f;
+
+	//ずかんの かげ(まだ みていない)は まっくろで かく。かざりも つけない
+	const bool isSilhouette = data.color.r < 40 && data.color.g < 40 && data.color.b < 40;
+
+	int frame = 0;
+	if (look.fps > 0.0f) frame = static_cast<int>(time * look.fps + data.id * 0.37f) % info.frames;
+
+	//うく・はねる(ドットの 大きさ ずつ うごかす)
+	float lift = 0.0f;
+	if (look.motion == Motion::Float) lift = (3.0f + std::round(std::sin(time * 2.5f + data.id))) * scale;
+	if (look.motion == Motion::Hop && std::fabs(std::sin(time * 3.0f + data.id)) > 0.7f) lift = scale;
+	const Vec2 base = { feet.x, feet.y - lift };
+
+	//かざりを つける いち(あたまの 上・体の まんなか・体の 大きさ・あたま)
+	const float w = (info.right - info.left) * scale;
+	const float h = (info.bottom - info.top) * scale;
+	const Vec2 top = { base.x, base.y - h };
+	const Vec2 body = { base.x, base.y - h * 0.45f };
+	const float bodyR = w * 0.45f;
+	const Vec2 head = { base.x + facing * w * 0.15f, base.y - h * 0.7f };
+
 	const int dot = PixelArt::DotFor(size);
-	float drawSize = size;
-	if (data.shape == MonsterShape::Spirit) drawSize *= kSpiritRate;
-	if (data.shape == MonsterShape::Doll || data.shape == MonsterShape::Rat) drawSize *= kSmallBodyRate;
-	isPixelPass = true;
-	PixelArt::Draw(feet, dot,
-		[&](const Vec2& f, float s) { ShapeMonster(f, drawSize * s, data, time, facing, isHurt); },
-		[&]() { isPixelPass = false; Shadow(feet, lastShadowW * dot); });
-	isPixelPass = false;
+	const auto local = [&](const Vec2& f, float s, const Vec2& p) { return f + (p - feet) * s; };
+
+	Shadow(feet, w * (look.motion == Motion::Float ? 0.35f : 0.45f));
+	if (!isSilhouette && HasDecorBack(data.id))
+	{
+		PixelArt::Draw(feet, dot, [&](const Vec2& f, float s) { DecorBack(data.id, local(f, s, base), size * s, t); });
+	}
+
+	{
+		int handle = -1;
+		if (isSilhouette) handle = CharaSprite::Frame(look.art, frame);
+		else
+		{
+			//いろちがいは そざいの いろを ぬりかえて わかる ように する
+			const bool isShiny = !IsSameColor(data.color, MonsterTable::Get(data.id).color);
+			const float tint = isShiny ? std::max(look.tint, kShinyTint) : look.tint;
+			handle = CharaSprite::Tinted(look.art, frame, data.color, tint);
+		}
+		BrightScope bright(isSilhouette ? 25 : 255, isSilhouette ? 20 : (isHurt ? 120 : 255), isSilhouette ? 35 : (isHurt ? 120 : 255));
+		DrawArt(handle, info, base, scale, flipX);
+	}
+
+	if (!isSilhouette && HasDecor(data.id))
+	{
+		PixelArt::Draw(feet, dot, [&](const Vec2& f, float s)
+			{
+				Decor(data.id, local(f, s, base), size * s, t, facing, local(f, s, top), local(f, s, body), bodyR * s, local(f, s, head));
+			});
+	}
 }

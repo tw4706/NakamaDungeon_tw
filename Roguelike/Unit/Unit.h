@@ -44,6 +44,7 @@ struct Unit
 	int burnTurns = 0;
 	int burnDamage = 0;
 	int paralyzeTurns = 0;
+	int paralyzeGuard = 0;		//しびれが とけた あと しびれない ターン(なかま・ゆうしゃ)
 	bool isStunned = false;
 	int weakenTurns = 0;		//よわらせる(こうげき・ぼうぎょ -20%)
 
@@ -89,4 +90,9 @@ namespace UnitDraw
 	/// モンスターの描画
 	/// </summary>
 	void Monster(const Vec2& feet, float size, const MonsterData& data, float time, float facing, bool isHurt);
+
+	/// <summary>
+	/// 体の 高さが maxHeight に おさまる 大きさ(小さい わくに ならべる とき。うく ぶんは ふくまない)
+	/// </summary>
+	float FitMonsterSize(float size, const MonsterData& data, float maxHeight);
 }

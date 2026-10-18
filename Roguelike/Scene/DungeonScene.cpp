@@ -37,6 +37,7 @@ namespace
 	constexpr int kMessageNum = 4;
 	constexpr float kMessageWidth = 880.0f;
 	constexpr int kBaseCrit = 6;
+	constexpr float kCritRate = 1.8f;		//かいしんの ダメージ(こうげきの ばいりつ)
 	constexpr float kDoubleSecondRate = 0.6f;	//とくぎ「2かい こうげき」の 2回目の ダメージ
 	constexpr int kStairSenseRadius = 2;		//かいだんの けはいで わかる はんい
 	constexpr float kCalmHealRate = 0.9f;		//たたかって いないとき なかまの 回復役が 回復する HPの わりあい(いか)
@@ -54,6 +55,16 @@ namespace
 	constexpr int kHeroHp = HeroGrowth::kBaseHp;
 	constexpr int kHeroAtk = HeroGrowth::kBaseAtk;
 	constexpr int kHeroDef = HeroGrowth::kBaseDef;
+
+	//ゆうしゃの まもり(ダンジョンの なかだけ。セーブの そだちには ふくめない)
+	//なかまは 1レベルで HP+5〜12・ぼうぎょ+1〜2 のびるので、ゆうしゃが ひとりだけ もろく ならない ように たす
+	constexpr int kHeroHpPerLevel = 77;		//1レベルごとの HP
+	constexpr int kHeroDefLevelStep = 1;	//この レベルごとに ぼうぎょ+1
+
+	//しびれ(なかまがわ が うける とき)
+	constexpr int kHeroParalyzeTurns = 1;	//ゆうしゃが うごけない ターン(まけに ちょっけつ するので みじかく)
+	constexpr int kAllyParalyzeTurns = 2;
+	constexpr int kParalyzeGuardTurns = 3;	//とけた あと しびれない ターン(つづけて うごけなく ならない ように)
 
 	//敵の強さの倍率
 	constexpr float kEnemyHpRate = 0.85f;
@@ -583,9 +594,10 @@ void DungeonScene::RecomputeBonus()
 void DungeonScene::ApplyHeroStats()
 {
 	Unit& hero = units_[0];
-	hero.maxHp = std::max(1, baseMaxHp_ + bonus_.Get(SkillKind::Hp));
+	const int lv = std::max(1, hero.level);
+	hero.maxHp = std::max(1, baseMaxHp_ + kHeroHpPerLevel * (lv - 1) + bonus_.Get(SkillKind::Hp));
 	hero.atk = std::max(1, baseAtk_ + bonus_.Get(SkillKind::Atk));
-	hero.def = std::max(0, baseDef_ + bonus_.Get(SkillKind::Def));
+	hero.def = std::max(0, baseDef_ + lv / kHeroDefLevelStep + bonus_.Get(SkillKind::Def));
 	hero.hp = std::min(hero.hp, hero.maxHp);
 }
 
@@ -610,6 +622,11 @@ bool DungeonScene::IsBossAlive() const
 bool DungeonScene::Chance(int percent) const
 {
 	return RandI(0, 99) < percent;
+}
+
+int DungeonScene::HeroCritRate() const
+{
+	return kBaseCrit + baseCrit_ + bonus_.Get(SkillKind::Crit);
 }
 
 void DungeonScene::StartFloor(bool isFirst)
@@ -644,6 +661,7 @@ void DungeonScene::StartFloor(bool isFirst)
 	{
 		u.drawPos = CellToPos(u.cell);
 		u.poisonTurns = u.burnTurns = u.paralyzeTurns = 0;
+		u.paralyzeGuard = 0;
 		u.isStunned = false;
 	}
 
@@ -982,7 +1000,7 @@ void DungeonScene::UpdateInput()
 	if (hero.paralyzeTurns > 0 || hero.isStunned)
 	{
 		AddMessage(hero.isStunned ? L"ゆうしゃは ひるんで うごけない！" : L"からだが しびれて うごけない！", GetColor(255, 230, 120));
-		if (hero.paralyzeTurns > 0) hero.paralyzeTurns--;
+		if (hero.paralyzeTurns > 0 && --hero.paralyzeTurns == 0) hero.paralyzeGuard = kParalyzeGuardTurns;
 		hero.isStunned = false;
 		EndPlayerTurn();
 		waitTimer_ = 0.35f;
@@ -1177,7 +1195,7 @@ bool DungeonScene::SkipByStatus(int index)
 	}
 	if (u.paralyzeTurns > 0)
 	{
-		u.paralyzeTurns--;
+		if (--u.paralyzeTurns == 0 && u.IsParty()) u.paralyzeGuard = kParalyzeGuardTurns;
 		return true;
 	}
 	return false;
@@ -1192,6 +1210,7 @@ void DungeonScene::TickStatus()
 		Unit& u = units_[i];
 		if (!u.isAlive) continue;
 		if (u.weakenTurns > 0) u.weakenTurns--;
+		if (u.paralyzeGuard > 0) u.paralyzeGuard--;
 
 		if (u.poisonTurns > 0)
 		{
@@ -1480,6 +1499,7 @@ Unit DungeonScene::MakeAllyFrom(const Unit& enemy) const
 	a.isAlive = true;
 	a.isElite = false;
 	a.poisonTurns = a.burnTurns = a.paralyzeTurns = 0;
+	a.paralyzeGuard = 0;
 	a.isStunned = false;
 	a.name = a.Data().name;
 
@@ -1809,9 +1829,19 @@ void DungeonScene::DrawGates()
 			const float rise = isOpen ? std::fmod(time_ * 20.0f + k * 7.0f, 24.0f) : 0.0f;
 			DrawCircleAA(p.x + std::cos(a) * 18.0f, p.y + 6.0f + std::sin(a) * 9.0f - rise, 2.5f, 8, light, TRUE);
 		}
+	}
+}
 
+void DungeonScene::DrawGateLabels()
+{
+	//いきさきの かいは キャラに かくれない ように キャラの あとに かく
+	const Vec2 off(Game::kScreenWidth * 0.5f - camera_.x, Game::kScreenHeight * 0.5f - camera_.y);
+	for (const Gate& g : gates_)
+	{
+		if (!map_.IsExplored(g.cell)) continue;
+		const Vec2 p = CellToPos(g.cell) + off;
 		const std::wstring label = L"B" + std::to_wstring(g.floor) + L"F";
-		Font::DrawCenter(p.x, p.y - 22.0f, label.c_str(), isOpen ? GetColor(200, 240, 255) : GetColor(140, 140, 160), FontSize::Small, GetColor(10, 10, 25));
+		Font::DrawCenter(p.x, p.y - 22.0f, label.c_str(), IsGateOpen(g.floor) ? GetColor(200, 240, 255) : GetColor(140, 140, 160), FontSize::Small, GetColor(10, 10, 25));
 	}
 }
 
@@ -2056,8 +2086,9 @@ void DungeonScene::Attack(int attacker, int target, float rate, bool isExtra)
 		return;
 	}
 
-	const int critRate = kBaseCrit + (attacker == 0 ? baseCrit_ + bonus_.Get(SkillKind::Crit) : 0);
-	bool isCritical = Chance(critRate);
+	//かいしん りつが 100% いじょう なら かならず かいしん
+	const int critRate = attacker == 0 ? HeroCritRate() : kBaseCrit;
+	bool isCritical = critRate >= 100 || Chance(critRate);
 
 	//せんせい: HPが まんたんの てきへの こうげきは かならず かいしん(どの てきにも さいしょの いちげきが かいしん)
 	if (attacker == 0 && bonus_.Get(SkillKind::FirstStrike) > 0 && t.hp >= t.maxHp) isCritical = true;
@@ -2066,7 +2097,7 @@ void DungeonScene::Attack(int attacker, int target, float rate, bool isExtra)
 	const float atkRate = a.weakenTurns > 0 ? kWeakenRate : 1.0f;
 	const float defRate = t.weakenTurns > 0 ? kWeakenRate : 1.0f;
 	float raw = a.atk * atkRate * RandF(0.85f, 1.15f) - t.def * defRate * 0.5f;
-	if (isCritical) raw = a.atk * atkRate * 1.8f;
+	if (isCritical) raw = a.atk * atkRate * kCritRate;
 	raw *= rate;
 
 	//れんけい: なかまが さっき こうげきした てき
@@ -2155,9 +2186,11 @@ void DungeonScene::Attack(int attacker, int target, float rate, bool isExtra)
 		tt.poisonDamage = std::max(1, a.atk / 4);
 		if (tt.IsParty()) AddMessage(tt.name + L"は どくに なった！", GetColor(210, 150, 255));
 	}
-	if (tt.isAlive && a.HasSkill(Skill::Freeze) && Chance(30 - resist / 2))
+	//なかまがわは しびれて いる あいだ・とけた ちょくごは かさねて しびれない(うごけない ままに ならない ように)
+	const bool canParalyze = !tt.IsParty() || (tt.paralyzeTurns == 0 && tt.paralyzeGuard == 0);
+	if (tt.isAlive && canParalyze && a.HasSkill(Skill::Freeze) && Chance(30 - resist / 2))
 	{
-		tt.paralyzeTurns = 2;
+		tt.paralyzeTurns = !tt.IsParty() ? 2 : (target == 0 ? kHeroParalyzeTurns : kAllyParalyzeTurns);
 		if (tt.IsParty()) AddMessage(tt.name + L"は しびれて うごけなくなった！", GetColor(255, 230, 120));
 	}
 	if (tt.isAlive && a.HasSkill(Skill::Burn) && Chance(40 - resist / 2))
@@ -2281,7 +2314,7 @@ void DungeonScene::Damage(int attacker, int target, int amount, bool isCritical)
 	if (isCritical)
 	{
 		fx.Shake(8.0f, 0.2f);
-		Sound::GetInstance().PlaySE(SE::Bang);
+		Sound::GetInstance().PlaySE(SE::Critical);
 		AddMessage(L"かいしんの いちげき！", GetColor(255, 230, 100));
 	}
 	else
@@ -2501,7 +2534,9 @@ void DungeonScene::Kill(int target, int killer)
 			if (static_cast<int>(i) == target || !o.isAlive || o.faction != Faction::Enemy || Distance(o.cell, center) > 1) continue;
 			o.burnTurns = 3;
 			o.burnDamage = std::max(o.burnDamage, std::max(1, hero.atk * burnLv / 5));
-			Damage(0, static_cast<int>(i), std::max(1, static_cast<int>(hero.atk * 0.8f)), false);
+			//まきこむ ダメージも ゆうしゃの こうげき なので かいしんが でる
+			const bool isBlastCrit = HeroCritRate() >= 100 || Chance(HeroCritRate());
+			Damage(0, static_cast<int>(i), std::max(1, static_cast<int>(hero.atk * 0.8f * (isBlastCrit ? kCritRate : 1.0f))), isBlastCrit);
 		}
 		blastDepth_--;
 	}
@@ -2524,6 +2559,21 @@ void DungeonScene::Kill(int target, int killer)
 		for (Unit& u : units_) ApplyAllyHpBonus(u);
 		AddMessage(std::wstring(L"だいじな もの「") + KeyItem::Get(keyItem).name + L"」を てにいれた！", GetColor(255, 220, 120));
 		AddMessage(L"（" + KeyItem::EffectText(keyItem) + L"）", GetColor(255, 240, 200));
+	}
+
+	//経験値(さいごの ぬしも くれる ように クリアの まえに わたす)
+	const MonsterData m = t.Data();
+	int baseExp = m.exp * (t.isElite ? 3 : 1);
+	if (IsTraining()) baseExp = t.monsterId == Stage::kKiraPurun ? Stage::Rank(rank_).kiraExp * (t.isShiny ? 3 : 1) : baseExp * 2;
+	if (t.isAbyss) baseExp *= Stage::kAbyssExpRate;
+	const int exp = baseExp * (100 + bonus_.Get(SkillKind::Exp)) / 100;
+	for (size_t i = 0; i < units_.size(); i++)
+	{
+		if (!units_[i].isAlive || !units_[i].IsParty()) continue;
+
+		//キラプルンの すみかは むずかしさの レベルを こえると けいけんちが へる
+		const bool isOver = IsTraining() && units_[i].level >= Stage::Rank(rank_).levelCap;
+		GainExp(static_cast<int>(i), isOver ? std::max(1, exp / Stage::kTrainingOverRate) : exp);
 	}
 
 	//さいごのボスを倒したらクリア(はじまりの どうくつ B12F・むげんの めいきゅう B100F)
@@ -2566,20 +2616,6 @@ void DungeonScene::Kill(int target, int killer)
 		AddMessage(L"かいだんの ふういんが とけた！", GetColor(255, 230, 140));
 	}
 
-	//経験値
-	const MonsterData m = t.Data();
-	int baseExp = m.exp * (t.isElite ? 3 : 1);
-	if (IsTraining()) baseExp = t.monsterId == Stage::kKiraPurun ? Stage::Rank(rank_).kiraExp * (t.isShiny ? 3 : 1) : baseExp * 2;
-	if (t.isAbyss) baseExp *= Stage::kAbyssExpRate;
-	const int exp = baseExp * (100 + bonus_.Get(SkillKind::Exp)) / 100;
-	for (size_t i = 0; i < units_.size(); i++)
-	{
-		if (!units_[i].isAlive || !units_[i].IsParty()) continue;
-
-		//キラプルンの すみかは むずかしさの レベルを こえると けいけんちが へる
-		const bool isOver = IsTraining() && units_[i].level >= Stage::Rank(rank_).levelCap;
-		GainExp(static_cast<int>(i), isOver ? std::max(1, exp / Stage::kTrainingOverRate) : exp);
-	}
 
 	//起き上がって仲間になりたそうにする
 	//仲間にならないモンスター(確率0)はスカウトでも変わらない
@@ -2688,6 +2724,7 @@ void DungeonScene::GainExp(int index, int exp)
 			baseAtk_ += 1;
 			if (u.level % 2 == 0) baseDef_ += 1;
 			u.hp += 4;
+			u.hp += kHeroHpPerLevel;
 			ApplyHeroStats();
 			pendingChoices_++;
 		}
@@ -2840,6 +2877,7 @@ void DungeonScene::Draw()
 	DrawMap();
 	if (state_ != State::Return && state_ != State::Clear && state_ != State::GameOver) DrawGates();
 	DrawUnits();
+	if (state_ != State::Return && state_ != State::Clear && state_ != State::GameOver) DrawGateLabels();
 	DrawHud();
 	DrawMinimap();
 	DrawMessages();
@@ -3040,7 +3078,6 @@ void DungeonScene::DrawUnits()
 
 void DungeonScene::DrawHud()
 {
-	const int fontS = Font::Get(FontSize::Small);
 
 	//階の表示(文字の幅に合わせた枠)
 	const std::wstring floorText = FloorPrefix() + L"B" + std::to_wstring(floor_) + L"F";
@@ -3065,7 +3102,7 @@ void DungeonScene::DrawHud()
 		const unsigned int col = rate > 0.5f ? GetColor(90, 220, 110) : (rate > 0.25f ? GetColor(240, 200, 60) : GetColor(240, 80, 70));
 		DrawRoundRectAA(30.0f, y + 36.0f, barRight, y + 48.0f, 5.0f, 5.0f, 8, GetColor(40, 40, 50), TRUE);
 		if (rate > 0.0f) DrawRoundRectAA(31.0f, y + 37.0f, 31.0f + (barRight - 32.0f) * rate, y + 47.0f, 4.0f, 4.0f, 8, col, TRUE);
-		DrawStringToHandle(static_cast<int>(hpX), static_cast<int>(y + 29.0f), hp.c_str(), GetColor(255, 255, 255), fontS, GetColor(20, 20, 30));
+		Font::DrawTop(hpX, y + 29.0f, hp.c_str(), GetColor(255, 255, 255), FontSize::Small, GetColor(20, 20, 30));
 		y += 66.0f;
 	}
 
@@ -3193,23 +3230,24 @@ void DungeonScene::DrawRecruit()
 		const std::vector<int> allies = AllyIndices();
 		const float top = 170.0f;
 		const float rowH = 62.0f;
-		const float bottom = top + 80.0f + allies.size() * rowH;
+		const float bottom = top + 116.0f + allies.size() * rowH;
 		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 120);
 		DrawBox(0, 0, Game::kScreenWidth, Game::kScreenHeight, GetColor(0, 0, 0), TRUE);
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 		DrawUtil::Window(330.0f, top, 950.0f, bottom);
 		Font::DrawCenter(640.0f, top + 36.0f, L"だれと いれかえる？", GetColor(255, 230, 140), FontSize::Medium, GetColor(20, 15, 30));
+		Font::DrawCenter(640.0f, top + 72.0f, L"えらんだ なかまは むらへ かえる", GetColor(190, 180, 210), FontSize::Small, GetColor(20, 15, 30));
 		for (size_t k = 0; k < allies.size(); k++)
 		{
 			const Unit& a = units_[allies[k]];
-			const float y = top + 96.0f + k * rowH;
+			const float y = top + 120.0f + k * rowH;
 			const bool isSel = static_cast<int>(k) == swapAllyCursor_;
 			if (isSel) DrawUtil::Cursor(360.0f, y, time_);
-			UnitDraw::Monster({ 420.0f, y + 22.0f }, 22.0f, a.Data(), time_, 1.0f, false);
+			UnitDraw::Monster({ 420.0f, y + 22.0f }, UnitDraw::FitMonsterSize(22.0f, a.Data(), 50.0f), a.Data(), time_, 1.0f, false);
 			const std::wstring text = a.name + L"　Lv" + std::to_wstring(a.level) + L"　HP " + std::to_wstring(a.hp) + L"/" + std::to_wstring(a.maxHp) + L"　こうげき " + std::to_wstring(a.atk);
 			Font::DrawFit(460.0f, y - 14.0f, text, isSel ? GetColor(255, 240, 150) : GetColor(220, 210, 235), FontSize::Small, GetColor(20, 15, 30), 470.0f);
 		}
-		ButtonGuide::DrawCenter(640.0f, bottom - 26.0f, L"{A}：いれかえる（えらんだ なかまは むらへ かえる）　{B}：もどる", GetColor(170, 160, 190), FontSize::Small, GetColor(20, 15, 30));
+		ButtonGuide::DrawCenter(640.0f, bottom - 30.0f, L"{A}：いれかえる　{B}：もどる", GetColor(170, 160, 190), FontSize::Small, GetColor(20, 15, 30));
 	}
 
 	//ことわる前の確認
@@ -3306,10 +3344,9 @@ void DungeonScene::DrawStatus()
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
 	DrawBox(0, 0, Game::kScreenWidth, Game::kScreenHeight, GetColor(0, 0, 0), TRUE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-	DrawUtil::Window(200.0f, 90.0f, 1080.0f, 630.0f);
+	DrawUtil::Window(120.0f, 70.0f, 1160.0f, 690.0f);
 
 	const Unit& hero = units_[0];
-	const int fontS = Font::Get(FontSize::Small);
 	const unsigned int white = GetColor(240, 235, 255);
 	const unsigned int edge = GetColor(20, 15, 30);
 	Font::DrawCenter(640.0f, 130.0f, L"つよさ", GetColor(255, 230, 140), FontSize::Medium, edge);
@@ -3318,11 +3355,11 @@ void DungeonScene::DrawStatus()
 	{
 		L"レベル " + std::to_wstring(hero.level) + L"　けいけんち " + std::to_wstring(hero.exp) + L"/" + std::to_wstring(hero.NextExp()),
 		L"HP " + std::to_wstring(hero.hp) + L"/" + std::to_wstring(hero.maxHp) + L"　こうげき " + std::to_wstring(hero.atk) + L"　ぼうぎょ " + std::to_wstring(hero.def),
-		L"かいしん " + std::to_wstring(kBaseCrit + baseCrit_ + bonus_.Get(SkillKind::Crit)) + L"%" +
+		L"かいしん " + std::to_wstring(HeroCritRate()) + L"%" +
 			(Save().run.mealFish >= 0 ? L"　たべた りょうり：" + std::wstring(FishTable::All()[Save().run.mealFish].dish) + L"（" + FishTable::MealText(Save().run.mealFish, Save().run.mealSize) + L"）" : std::wstring()),
 		L"せいかく：" + std::wstring(kPersonalities[personality_].name) + L"（" + kPersonalities[personality_].desc + L"）",
 	};
-	for (int i = 0; i < 4; i++) Font::DrawFit(250.0f, 170.0f + i * 36.0f, lines[i], white, FontSize::Small, edge, 780.0f);
+	for (int i = 0; i < 4; i++) Font::DrawFit(170.0f, 170.0f + i * 36.0f, lines[i], white, FontSize::Small, edge, 940.0f);
 
 	//装備とお守り
 	const SaveSlot& s = SaveManager::GetInstance().Current();
@@ -3333,14 +3370,14 @@ void DungeonScene::DrawStatus()
 	};
 	const std::wstring equip = L"うえ：" + partText(s.equipUpper, s.equipUpperVar, EquipPart::Upper) +
 		L"　した：" + partText(s.equipLower, s.equipLowerVar, EquipPart::Lower);
-	Font::DrawFit(250.0f, 322.0f, equip, white, FontSize::Small, edge, 780.0f);
+	Font::DrawFit(170.0f, 322.0f, equip, white, FontSize::Small, edge, 940.0f);
 
 	const Charm* charm = Save().run.runCharm >= 0 ? &Save().run.foundCharms[Save().run.runCharm] :
 		(s.equippedCharm >= 0 && s.equippedCharm < static_cast<int>(s.charms.size()) ? &s.charms[s.equippedCharm] : nullptr);
-	Font::DrawFit(250.0f, 358.0f, L"おまもり：" + (charm ? charm->Name() : std::wstring(L"なし")) + (KeyItem::OwnedCount(s) > 0 ? L"　／　だいじな もの " + std::to_wstring(KeyItem::OwnedCount(s)) + L"こ" : std::wstring()), white, FontSize::Small, edge, 780.0f);
+	Font::DrawFit(170.0f, 358.0f, L"おまもり：" + (charm ? charm->Name() : std::wstring(L"なし")) + (KeyItem::OwnedCount(s) > 0 ? L"　／　だいじな もの " + std::to_wstring(KeyItem::OwnedCount(s)) + L"こ" : std::wstring()), white, FontSize::Small, edge, 940.0f);
 
-	//発動中のスキル(5行ずつ、ふだんは2列)
-	constexpr int kSkillRows = 5;
+	//発動中のスキル(7行ずつ、ふだんは2列)
+	constexpr int kSkillRows = 7;
 	std::vector<std::pair<std::wstring, bool>> skills;
 	for (int k = static_cast<int>(SkillKind::Atk); k < static_cast<int>(SkillKind::Num); k++)
 	{
@@ -3348,17 +3385,23 @@ void DungeonScene::DrawStatus()
 		if (v != 0) skills.push_back({ SkillInfo::Describe({ static_cast<SkillKind>(k), v }), v > 0 });
 	}
 	const int cols = std::max(2, (static_cast<int>(skills.size()) + kSkillRows - 1) / kSkillRows);
-	const float colW = 790.0f / cols;
-	DrawStringToHandle(250, 404, L"はつどうちゅうの スキル", GetColor(255, 230, 140), fontS, edge);
+	//れつの はばは なかみの ながさに あわせて わける(ながい スキルが ちいさく ならない ように)
+	std::vector<float> colW(cols, 0.0f);
+	for (size_t i = 0; i < skills.size(); i++) colW[i / kSkillRows] = std::max(colW[i / kSkillRows], Font::Width(skills[i].first, FontSize::Small) + 36.0f);
+	float total = 0.0f;
+	for (float w : colW) total += w;
+	const float rate = total > 950.0f ? 950.0f / total : 1.0f;
+	Font::DrawTop(170.0f, 404.0f, L"はつどうちゅうの スキル", GetColor(255, 230, 140), FontSize::Small, edge);
+	float colX = 182.0f;
 	for (size_t i = 0; i < skills.size(); i++)
 	{
-		const float x = 262.0f + (i / kSkillRows) * colW;
-		const float y = 438.0f + (i % kSkillRows) * 29.0f;
-		Font::DrawFit(x, y, skills[i].first, skills[i].second ? GetColor(200, 230, 255) : GetColor(255, 160, 160), FontSize::Small, edge, colW - 14.0f);
+		if (i > 0 && i % kSkillRows == 0) colX += colW[i / kSkillRows - 1] * rate;
+		const float y = 438.0f + (i % kSkillRows) * 28.0f;
+		Font::DrawFit(colX, y, skills[i].first, skills[i].second ? GetColor(200, 230, 255) : GetColor(255, 160, 160), FontSize::Small, edge, colW[i / kSkillRows] * rate - 14.0f);
 	}
-	if (skills.empty()) DrawStringToHandle(262, 438, L"なし", GetColor(150, 140, 170), fontS, edge);
+	if (skills.empty()) Font::DrawTop(182.0f, 438.0f, L"なし", GetColor(150, 140, 170), FontSize::Small, edge);
 
-	ButtonGuide::DrawCenter(640.0f, 606.0f, L"{A} / {B}：もどる", GetColor(150, 140, 170), FontSize::Small, edge);
+	ButtonGuide::DrawCenter(640.0f, 662.0f, L"{A} / {B}：もどる", GetColor(150, 140, 170), FontSize::Small, edge);
 }
 
 void DungeonScene::DrawRest()
@@ -3525,8 +3568,22 @@ void DungeonScene::DrawResult()
 			Font::DrawCenterFit(640.0f, 430.0f, L"むげんの めいきゅう・いろちがいの モンスター・おまもりが かいほう された", GetColor(230, 220, 255), FontSize::Small, GetColor(30, 20, 40), 1200.0f);
 		}
 
-		//とちゅうの ぬしの だいじな もの(むげん とうはは うえで だしている)
-		if (gotKeyItem_ >= 0 && !isInfiniteClear)
+		//しんえん とうはの ほうび(よみの ともしび)も むげんと おなじように おおきく みせる
+		const bool isAbyssReward = state_ == State::Clear && IsAbyss() && gotKeyItem_ >= 0;
+		if (isAbyssReward)
+		{
+			const std::wstring got = std::wstring(L"とくべつな もの「") + KeyItem::Get(gotKeyItem_).name + L"」を てにいれた！";
+			Font::DrawCenterFit(640.0f, 380.0f, got, GetColor(255, 220, 140), FontSize::Medium, GetColor(60, 30, 10), 1200.0f);
+			DrawUtil::Star(640.0f - Font::Width(got, FontSize::Medium) * 0.5f - 34.0f, 380.0f, 18.0f, time_ * 2.0f, GetColor(255, 220, 80));
+			const auto lines = Font::Wrap(L"ずっと はつどう：" + KeyItem::EffectText(gotKeyItem_), FontSize::Small, 1120.0f);
+			for (size_t i = 0; i < lines.size() && i < 2; i++)
+			{
+				Font::DrawCenterFit(640.0f, 430.0f + i * 30.0f, lines[i], GetColor(230, 220, 255), FontSize::Small, GetColor(30, 20, 40), 1200.0f);
+			}
+		}
+
+		//とちゅうの ぬしの だいじな もの(むげん・しんえんの とうはは うえで だしている)
+		if (gotKeyItem_ >= 0 && !isInfiniteClear && !isAbyssReward)
 		{
 			const float y = (state_ == State::Clear && isFirstClear_) ? 470.0f : 380.0f;
 			const std::wstring got = std::wstring(L"だいじな もの「") + KeyItem::Get(gotKeyItem_).name + L"」を てにいれた！（" + KeyItem::EffectText(gotKeyItem_) + L"）";

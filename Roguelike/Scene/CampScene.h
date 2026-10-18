@@ -133,6 +133,7 @@ private:
 
 	void DrawGround();
 	void DrawBuildings();
+	void DrawPlaceLabels();
 	void DrawArchive();
 	void DrawSmithy();
 	void DrawNoticeBoard();

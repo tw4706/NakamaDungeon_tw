@@ -196,6 +196,7 @@ private:
 	int GateAt(const Cell& c) const;
 	bool IsGateOpen(int targetFloor);
 	void DrawGates();
+	void DrawGateLabels();
 	void AcceptRecruit();
 
 	/// <summary>
@@ -244,6 +245,11 @@ private:
 	int ThemeFloor() const;
 	bool IsBossAlive() const;
 	bool Chance(int percent) const;
+
+	/// <summary>
+	/// ゆうしゃの かいしん りつ(%。100 いじょうなら すべて かいしん)
+	/// </summary>
+	int HeroCritRate() const;
 	Vec2 CellToPos(const Cell& c) const;
 
 	//------------------------------//

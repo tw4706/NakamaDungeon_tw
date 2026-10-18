@@ -85,7 +85,7 @@ namespace
 
 	float FontHeight(FontSize size)
 	{
-		return static_cast<float>(GetFontSizeToHandle(Font::Get(size)));
+		return static_cast<float>(Font::GetPixelSize(size));
 	}
 
 	float GlyphWidth(Glyph g, FontSize size, bool isPad)
@@ -105,8 +105,8 @@ namespace
 		DrawCircleAA(cx, cy, r, 24, color, FALSE, 2.0f);
 		const int font = Font::Get(size);
 		const int w = GetDrawStringWidthToHandle(letter, 1, font);
-		const int h = GetFontSizeToHandle(font);
-		DrawExtendStringToHandle(static_cast<int>(cx - w * 0.4f), static_cast<int>(cy - h * 0.4f), 0.8, 0.8, letter, color, font);
+		const float h = static_cast<float>(Font::GetPixelSize(size));
+		Font::DrawTop(cx - w * 0.4f, cy - h * 0.4f, letter, color, size, 0, 0.8f);
 	}
 
 	void DrawGlyph(Glyph g, float x, float cy, FontSize size, bool isPad)
@@ -120,10 +120,9 @@ namespace
 			const float x2 = x + w - 2.0f;
 			DrawRoundRectAA(x1, cy - h * 0.5f + 2.5f, x2, cy + h * 0.5f + 2.5f, 6.0f, 6.0f, 8, GetColor(110, 110, 125), TRUE);
 			DrawRoundRectAA(x1, cy - h * 0.5f, x2, cy + h * 0.5f, 6.0f, 6.0f, 8, GetColor(235, 235, 242), TRUE);
-			const int font = Font::Get(size);
 			const wchar_t* name = KeyName(g);
 			const float tw = Font::Width(name, size) * 0.8f;
-			DrawExtendStringToHandle(static_cast<int>((x1 + x2) * 0.5f - tw * 0.5f), static_cast<int>(cy - h * 0.4f), 0.8, 0.8, name, GetColor(40, 40, 50), font);
+			Font::DrawTop((x1 + x2) * 0.5f - tw * 0.5f, cy - h * 0.4f, name, GetColor(40, 40, 50), size, 0, 0.8f);
 			return;
 		}
 
@@ -150,7 +149,7 @@ namespace
 			DrawCircleAA(cx, cy, r * 0.7f, 24, GetColor(45, 46, 52), TRUE);
 			const int font = Font::Get(size);
 			const int lw = GetDrawStringWidthToHandle(L"L", 1, font);
-			DrawExtendStringToHandle(static_cast<int>(cx - lw * 0.35f), static_cast<int>(cy - h * 0.35f), 0.7, 0.7, L"L", GetColor(230, 230, 240), font);
+			Font::DrawTop(cx - lw * 0.35f, cy - h * 0.35f, L"L", GetColor(230, 230, 240), size, 0, 0.7f);
 			break;
 		}
 		case Glyph::PageL:
@@ -164,7 +163,7 @@ namespace
 			const wchar_t* label = g == Glyph::PageL ? L"LB" : L"RB";
 			const int font = Font::Get(size);
 			const float lw = static_cast<float>(GetDrawStringWidthToHandle(label, 2, font)) * 0.65f;
-			DrawExtendStringToHandle(static_cast<int>(cx - lw * 0.5f), static_cast<int>(cy - h * 0.33f), 0.65, 0.65, label, GetColor(230, 230, 240), font);
+			Font::DrawTop(cx - lw * 0.5f, cy - h * 0.33f, label, GetColor(230, 230, 240), size, 0, 0.65f);
 			break;
 		}
 		case Glyph::UpDown:
@@ -220,13 +219,12 @@ float ButtonGuide::Width(const std::wstring& text, FontSize size)
 void ButtonGuide::Draw(float x, float y, const std::wstring& text, unsigned int color, FontSize size, unsigned int edgeColor)
 {
 	const bool isPad = IsPad();
-	const int font = Font::Get(size);
 	const float h = FontHeight(size);
 	for (const Part& p : Split(text))
 	{
 		if (p.glyph == Glyph::Text)
 		{
-			DrawStringToHandle(static_cast<int>(x), static_cast<int>(y - h * 0.5f), p.text.c_str(), color, font, edgeColor);
+			Font::DrawTop(x, y - h * 0.5f, p.text.c_str(), color, size, edgeColor);
 			x += static_cast<float>(Font::Width(p.text, size));
 			continue;
 		}

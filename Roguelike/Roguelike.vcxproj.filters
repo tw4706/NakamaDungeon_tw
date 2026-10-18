@@ -93,6 +93,9 @@
     <ClCompile Include="Scene\ZukanScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="System\CharaSprite.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
     <ClCompile Include="System\Sprite.cpp">
       <Filter>System</Filter>
     </ClCompile>
@@ -211,6 +214,9 @@
     </ClInclude>
     <ClInclude Include="Scene\ZukanScene.h">
       <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="System\CharaSprite.h">
+      <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="System\Sprite.h">
       <Filter>System</Filter>
